@@ -35,11 +35,11 @@ see [[architecture.md]]
 - [x] Handle focus management between cells
 
 #### Phase 5: Table Management
-- [ ] a. Implement row insertion
-- [ ] b. Keep in mind that a our file format (newlines, tabs and text) allows ragged arrays, and we support that.  Accordingly, Enter adds a newline but no tab characters.  It will set focus to the new cell.
-- [ ] c. Implement column insertion.  {Tab} at the end cell of a line will add a tab.
-- [ ] d. Implement column deletion.  {Backspace} at the beginning of the last cell of a line will delete a tab.
-- [ ] e. {Backspace} if a line is empty will delete the newline.
+- [x] a. Implement row insertion
+- [x] b. Keep in mind that a our file format (newlines, tabs and text) allows ragged arrays, and we support that.  Accordingly, Enter adds a newline but no tab characters.  It will set focus to the new cell.
+- [x] c. Implement column insertion.  {Tab} at the end cell of a line will add a tab.
+- [x] d. Implement column deletion.  {Backspace} at the beginning of the last cell of a line will delete a tab.
+- [x] e. {Backspace} if a line is empty will delete the newline.
 - [ ] Handle dynamic table resizing
 - [ ] Add context menus for table operations
 

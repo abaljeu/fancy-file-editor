@@ -66,6 +66,22 @@ class MyTextEditorProvider implements vscode.CustomTextEditorProvider {
         
         // Update document and refresh webview
         this.updateDocumentAndRefresh(document, webviewPanel, model);
+      } else if (e.type === 'addColumn') {
+        // Handle adding column to specific row
+        const { rowIndex, newColIndex } = e.data;
+        model.addColumnToRow(rowIndex);
+        
+        // Update document and refresh webview with focus on new column
+        this.updateDocumentAndRefresh(document, webviewPanel, model, { row: rowIndex, col: newColIndex });
+      } else if (e.type === 'removeColumn') {
+        // Handle removing last column from specific row
+        const { rowIndex, focusCol } = e.data;
+        const removed = model.removeLastColumnFromRow(rowIndex);
+        
+        if (removed) {
+          // Update document and refresh webview with focus on previous column
+          this.updateDocumentAndRefresh(document, webviewPanel, model, { row: rowIndex, col: focusCol });
+        }
       }
     });
 
