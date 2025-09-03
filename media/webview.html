@@ -41,71 +41,125 @@
       });
     }
     
-    // Handle keyboard navigation
-    function handleKeyNavigation(event) {
+    // Unified keyboard event handler for all cell interactions
+    function handleKeyDown(event, rowIndex, colIndex) {
       const input = event.target;
-      const row = parseInt(input.dataset.row);
-      const col = parseInt(input.dataset.col);
       
-      let targetRow = row;
-      let targetCol = col;
-      let preventDefault = false;
+      // Special action keys (always take precedence)
+      if (event.ctrlKey && event.key === '.') {
+        // Ctrl+. : Toggle fold
+        vscode.postMessage({
+          type: 'toggleFold',
+          data: { rowIndex: rowIndex, focusCell: { row: rowIndex, col: colIndex } }
+        });
+        event.preventDefault();
+        return;
+      }
+      
+      if (event.key === 'Enter') {
+        // Enter key: Insert row after current row
+        vscode.postMessage({
+          type: 'insertRow',
+          data: { rowIndex: rowIndex, position: 'after' }
+        });
+        event.preventDefault();
+        return;
+      }
+      
+      if (event.ctrlKey && event.key === 'Delete') {
+        // Ctrl+Delete: Delete row
+        vscode.postMessage({
+          type: 'deleteRow',
+          data: { rowIndex: rowIndex }
+        });
+        event.preventDefault();
+        return;
+      }
+      
+      if (event.key === 'Backspace' && input.selectionStart === 0) {
+        // Backspace at beginning of cell: delete row or remove column
+        const currentRow = document.querySelector(`tr[data-original-row="${rowIndex}"]`);
+        const cellsInRow = currentRow ? currentRow.querySelectorAll('input').length : 0;
+        
+        if (cellsInRow === 1 && input.value === '') {
+          // Empty line: delete the row
+          vscode.postMessage({
+            type: 'deleteRow',
+            data: { rowIndex: rowIndex }
+          });
+          event.preventDefault();
+          return;
+        } else if (input.value === '' && colIndex + 1 >= cellsInRow && cellsInRow > 1) {
+          // Last cell of row with multiple cells: remove column
+          vscode.postMessage({
+            type: 'removeColumn',
+            data: { rowIndex: rowIndex, focusCol: colIndex - 1 }
+          });
+          event.preventDefault();
+          return;
+        }
+      }
+      
+      // Navigation keys
+      let targetRow = rowIndex;
+      let targetCol = colIndex;
+      let shouldNavigate = false;
       
       switch(event.key) {
         case 'Tab':
           if (event.shiftKey) {
             // Shift+Tab: move left
-            targetCol = col - 1;
-            preventDefault = true;
+            targetCol = colIndex - 1;
+            shouldNavigate = true;
           } else {
             // Tab: check if we're at the last cell of the row
-            const currentRow = document.querySelector(`tr:nth-child(${row + 1})`);
+            const currentRow = document.querySelector(`tr:nth-child(${rowIndex + 1})`);
             const cellsInRow = currentRow ? currentRow.querySelectorAll('input').length : 0;
             
-            if (col + 1 >= cellsInRow) {
+            if (colIndex + 1 >= cellsInRow) {
               // We're at the last cell, add a new column
               vscode.postMessage({
                 type: 'addColumn',
-                data: { rowIndex: row, newColIndex: col + 1 }
+                data: { rowIndex: rowIndex, newColIndex: colIndex + 1 }
               });
               event.preventDefault();
               return;
             } else {
               // Normal tab navigation
-              targetCol = col + 1;
-              preventDefault = true;
+              targetCol = colIndex + 1;
+              shouldNavigate = true;
             }
           }
           break;
           
         case 'ArrowUp':
-          targetRow = row - 1;
-          preventDefault = true;
+          targetRow = rowIndex - 1;
+          shouldNavigate = true;
           break;
           
         case 'ArrowDown':
-          targetRow = row + 1;
-          preventDefault = true;
+          targetRow = rowIndex + 1;
+          shouldNavigate = true;
           break;
           
         case 'ArrowLeft':
           // Only navigate if cursor is at start of input
           if (input.selectionStart === 0) {
-            targetCol = col - 1;
-            preventDefault = true;
+            targetCol = colIndex - 1;
+            shouldNavigate = true;
           }
           break;
           
         case 'ArrowRight':
           // Only navigate if cursor is at end of input
           if (input.selectionStart === input.value.length) {
-            targetCol = col + 1;
-            preventDefault = true;
+            targetCol = colIndex + 1;
+            shouldNavigate = true;
           }
           break;
       }
       
-      if (preventDefault) {
+      if (shouldNavigate) {
         event.preventDefault();
         
         // Find target cell and focus it
@@ -205,6 +259,8 @@
           // Handle cell edits
           input.addEventListener('input', handleCellEdit);
           
+          // Handle keyboard navigation and special keys
+          input.addEventListener('keydown', (event) => handleKeyDown(event, rowData.originalRowIndex, colIndex));
           
           td.appendChild(input);
           tr.appendChild(td);
@@ -214,69 +270,6 @@
       });
     }
 
-    // Handle keyboard events for cells
-    function handleKeyDown(event, rowIndex, colIndex) {
-      // Ctrl+. : Toggle fold
-      if (event.ctrlKey && event.key === '.') {
-        vscode.postMessage({
-          type: 'toggleFold',
-          data: { rowIndex: rowIndex, focusCell: { row: rowIndex, col: colIndex } }
-        });
-        event.preventDefault();
-        return;
-      }
-      
-      // Enter key: Insert row after current row
-      if (event.key === 'Enter') {
-        vscode.postMessage({
-          type: 'insertRow',
-          data: { rowIndex: rowIndex, position: 'after' }
-        });
-        event.preventDefault();
-        return;
-      }
-      
-      // Ctrl+Delete: Delete row
-      if (event.ctrlKey && event.key === 'Delete') {
-        vscode.postMessage({
-          type: 'deleteRow',
-          data: { rowIndex: rowIndex }
-        });
-        event.preventDefault();
-        return;
-      }
-      
-      const input = event.target;
-      
-      // Backspace handling
-      if (event.key === 'Backspace' && input.selectionStart === 0) {
-        // Check if this is an empty line (single empty cell)
-        const currentRow = document.querySelector(`tr[data-original-row="${rowIndex}"]`);
-        const cellsInRow = currentRow ? currentRow.querySelectorAll('input').length : 0;
-        
-        if (cellsInRow === 1 && input.value === '') {
-          // Empty line: delete the row
-          vscode.postMessage({
-            type: 'deleteRow',
-            data: { rowIndex: rowIndex }
-          });
-          event.preventDefault();
-          return;
-        } else if (input.value === '' && colIndex + 1 >= cellsInRow && cellsInRow > 1) {
-          // Last cell of row with multiple cells: remove column
-          vscode.postMessage({
-            type: 'removeColumn',
-            data: { rowIndex: rowIndex, focusCol: colIndex - 1 }
-          });
-          event.preventDefault();
-          return;
-        }
-      }
-      
-      // Regular navigation for other keys
-      handleKeyNavigation(event);
-    }
-    
     // Folding functions
     function toggleFold(rowIndex) {
       vscode.postMessage({

@@ -67,6 +67,37 @@ describe('Folding Debug - New Implementation', () => {
       assert.strictEqual(visible[0].isFolded, true, 'Parent should be folded');
     });
 
+    it('should test recursiveUnfold operation', () => {
+      const testData = 'Parent\n\tChild1\n\t\tGrandchild1\n\t\tGrandchild2\n\tChild2\n\t\tGrandchild3';
+      const model = new TSVDataModel(testData);
+
+      console.log('\n=== TESTING RECURSIVE UNFOLD ===');
+      
+      // First, fold everything recursively
+      model.recursiveFold(0);
+      console.log('After recursiveFold(0): Only Parent should be visible');
+      let visible = model.getVisibleRows();
+      console.log('Visible rows:', visible.length);
+      
+      // Now unfold recursively
+      console.log('\n=== CALLING recursiveUnfold(0) ===');
+      console.log('This should make all rows visible and unfold all nodes');
+      model.recursiveUnfold(0);
+      
+      visible = model.getVisibleRows();
+      console.log('Visible rows after recursiveUnfold(0):', visible.length);
+      visible.forEach((row, i) => {
+        const text = row.cells.filter(c => c).join(' ');
+        console.log(`Row ${i}: "${text}" - indent:${row.indentLevel}, foldable:${row.isFoldable}, folded:${row.isFolded}`);
+      });
+
+      // Test that all rows are visible and unfoldable nodes are unfolded
+      assert.strictEqual(visible.length, 6, 'All 6 rows should be visible after recursiveUnfold');
+      assert.strictEqual(visible[0].isFolded, false, 'Parent should be unfolded');
+      assert.strictEqual(visible[1].isFolded, false, 'Child1 should be unfolded');
+      assert.strictEqual(visible[4].isFolded, false, 'Child2 should be unfolded');
+    });
+
     it('should debug the failing partial folding test', () => {
       const testData = 'Root\n\tSection1\n\t\tItem1\n\t\tItem2\n\tSection2\n\t\tItem3\n\t\tItem4';
       const model = new TSVDataModel(testData);
