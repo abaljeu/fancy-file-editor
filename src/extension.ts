@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { TSVDataModel, CellEdit } from './tsvDataModel';
 
 export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
