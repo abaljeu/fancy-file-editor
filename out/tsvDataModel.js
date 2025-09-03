@@ -161,7 +161,7 @@ class TSVDataModel {
         if (rowIndex < 0 || rowIndex >= this.rowMetadata.length)
             return;
         const parentLevel = this.rowMetadata[rowIndex].indentLevel;
-        // Fold/unfold the parent row itself if it has children
+        // Fold/unfold the parent row if it has children
         if (this.rowMetadata[rowIndex].hasChildren) {
             this.rowMetadata[rowIndex].isFolded = folded;
         }

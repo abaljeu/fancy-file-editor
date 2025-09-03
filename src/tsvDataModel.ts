@@ -219,12 +219,12 @@ export class TSVDataModel {
     
     const parentLevel = this.rowMetadata[rowIndex].indentLevel;
     
-    // Fold/unfold the parent row if it has children
+    // Mark the parent as folded (but don't actually fold it yet - that affects visibility later)
     if (this.rowMetadata[rowIndex].hasChildren) {
       this.rowMetadata[rowIndex].isFolded = folded;
     }
     
-    // Fold/unfold all descendants
+    // Mark all descendants as folded
     for (let i = rowIndex + 1; i < this.rowMetadata.length; i++) {
       const currentLevel = this.rowMetadata[i].indentLevel;
       

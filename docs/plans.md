@@ -67,8 +67,16 @@ see [[architecture.md]]
 #### Phase 7: Enhanced Features
 
 - [ ] a. Folding
-  - [ ] ... we need the details of folding listed here.
-
+  - [ ] Use indendation to identify parent/child hierarchy of lines.
+  - [ ] Each line has a state for folded or not, and for visible or not.  (It's not visible if one of its ancestors is folded).  Folding/visibililty states are not saved.
+  - [ ] If there are children, draw a downfacing or right-facing carat in the margin as appropriate to the fold state.
+  - [ ] Fold operation: set self to folded, unless this is a leaf, in which case set its parent to focus, and fold it..  When a node is folded, all its children become invisible.
+  - [ ] Unfold operation: on a visible node.  Set to not folded state.  Show its direct children.  Recurse through any children which are not folded.
+  - [ ] Fold All Children: Fold itself, and mark all descendants folded.  (And hidden).
+  - [ ] Unfold All Children: Unfold itself, mark all descendants unfolded. (And visible).
+  - [ ] Clicking the margin, or typing Ctrl Period toggles the fold state of self.
+  - [ ] Control Clicking or Ctrl Shift Period does the recursive Fold All or Unfold All.
+  
 - [ ] Implement proper TSV escaping for special characters
 - [ ] Implement cell formatting options
 - [ ] Add search/filter functionality
