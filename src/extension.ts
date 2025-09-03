@@ -14,6 +14,8 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 class MyTextEditorProvider implements vscode.CustomTextEditorProvider {
+  private tsvModels = new Map<string, TSVDataModel>();
+
   constructor(private readonly context: vscode.ExtensionContext) {}
 
   public async resolveCustomTextEditor(
@@ -21,23 +23,62 @@ class MyTextEditorProvider implements vscode.CustomTextEditorProvider {
     webviewPanel: vscode.WebviewPanel,
     _token: vscode.CancellationToken
   ) {
+    // Create TSV data model for this document
+    const tsvModel = new TSVDataModel(document.getText());
+    this.tsvModels.set(document.uri.toString(), tsvModel);
+
     webviewPanel.webview.options = { enableScripts: true };
     webviewPanel.webview.html = this.getHtml(webviewPanel.webview);
 
+    // Handle cell edit messages from webview
     webviewPanel.webview.onDidReceiveMessage(e => {
-      if (e.type === 'edit') {
+      const model = this.tsvModels.get(document.uri.toString());
+      if (!model) return;
+
+      if (e.type === 'cellEdit') {
+        // Handle individual cell edit
+        const cellEdit: CellEdit = e.data;
+        model.updateCell(cellEdit);
+        
+        // Update the document with new TSV content
+        const newTsvText = model.toTSV();
         const edit = new vscode.WorkspaceEdit();
-        edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), e.text);
+        edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), newTsvText);
         vscode.workspace.applyEdit(edit);
       }
     });
 
-    webviewPanel.webview.postMessage({ type: 'init', text: document.getText() });
+    // Send structured data to webview instead of raw text
+    const tableData = tsvModel.getData();
+    const dimensions = tsvModel.getDimensions();
+    webviewPanel.webview.postMessage({ 
+      type: 'init', 
+      data: {
+        table: tableData,
+        dimensions: dimensions
+      }
+    });
+
+    // Clean up model when webview is disposed
+    webviewPanel.onDidDispose(() => {
+      this.tsvModels.delete(document.uri.toString());
+    });
   }
 
   private getHtml(webview: vscode.Webview) {
     const htmlPath = path.join(this.context.extensionPath, 'media', 'webview.html');
-    return fs.readFileSync(htmlPath, 'utf8');
+    const cssPath = path.join(this.context.extensionPath, 'media', 'table.css');
+    
+    // Read HTML file
+    let html = fs.readFileSync(htmlPath, 'utf8');
+    
+    // Create webview URI for CSS file
+    const cssUri = webview.asWebviewUri(vscode.Uri.file(cssPath));
+    
+    // Replace CSS link with proper webview URI
+    html = html.replace('href="table.css"', `href="${cssUri}"`);
+    
+    return html;
   }
 }
 
