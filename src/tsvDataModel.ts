@@ -15,6 +15,7 @@ export type TSVTable = string[][];
 export interface RowMetadata {
   indentLevel: number;
   isFolded: boolean;
+  isVisible: boolean;  // New: explicit visibility state
   hasChildren: boolean;
 }
 
@@ -68,6 +69,7 @@ export class TSVDataModel {
       this.rowMetadata.push({
         indentLevel,
         isFolded: false,  // Default: not folded
+        isVisible: true,  // Default: visible
         hasChildren
       });
     }
@@ -203,37 +205,125 @@ export class TSVDataModel {
 
   // Folding Operations
 
-  // Toggle fold state of a specific row
-  toggleFold(rowIndex: number): void {
-    if (rowIndex >= 0 && rowIndex < this.rowMetadata.length) {
-      const metadata = this.rowMetadata[rowIndex];
-      if (metadata.hasChildren) {
-        metadata.isFolded = !metadata.isFolded;
-      }
-    }
-  }
-
-  // Set fold state of a row and all its descendants
-  foldAllDescendants(rowIndex: number, folded: boolean): void {
-    if (rowIndex < 0 || rowIndex >= this.rowMetadata.length) return;
+  // Helper: Get all children of a node
+  private getChildren(rowIndex: number): number[] {
+    const children: number[] = [];
+    if (rowIndex < 0 || rowIndex >= this.rowMetadata.length) return children;
     
     const parentLevel = this.rowMetadata[rowIndex].indentLevel;
     
-    // Mark the parent as folded (but don't actually fold it yet - that affects visibility later)
-    if (this.rowMetadata[rowIndex].hasChildren) {
-      this.rowMetadata[rowIndex].isFolded = folded;
-    }
-    
-    // Mark all descendants as folded
     for (let i = rowIndex + 1; i < this.rowMetadata.length; i++) {
       const currentLevel = this.rowMetadata[i].indentLevel;
       
       // Stop when we reach a row at the same or higher level (not a descendant)
       if (currentLevel <= parentLevel) break;
       
-      // Set fold state for this descendant if it has children
-      if (this.rowMetadata[i].hasChildren) {
-        this.rowMetadata[i].isFolded = folded;
+      // If this is a direct child (exactly one level deeper)
+      if (currentLevel === parentLevel + 1) {
+        children.push(i);
+      }
+    }
+    
+    return children;
+  }
+
+  // Hide(node): node.visible = false; for all children of node: Hide(child)
+  private hide(rowIndex: number): void {
+    if (rowIndex < 0 || rowIndex >= this.rowMetadata.length) return;
+    
+    this.rowMetadata[rowIndex].isVisible = false;
+    
+    const children = this.getChildren(rowIndex);
+    for (const childIndex of children) {
+      this.hide(childIndex);
+    }
+  }
+
+  // Show(node): node.visible = true; if (not folded) { for all children of node: Show(child); }
+  private show(rowIndex: number): void {
+    if (rowIndex < 0 || rowIndex >= this.rowMetadata.length) return;
+    
+    this.rowMetadata[rowIndex].isVisible = true;
+    
+    if (!this.rowMetadata[rowIndex].isFolded) {
+      const children = this.getChildren(rowIndex);
+      for (const childIndex of children) {
+        this.show(childIndex);
+      }
+    }
+  }
+
+  // FoldSelf(node): node.folded = true; for all children: Hide();
+  private foldSelf(rowIndex: number): void {
+    if (rowIndex < 0 || rowIndex >= this.rowMetadata.length) return;
+    
+    this.rowMetadata[rowIndex].isFolded = true;
+    
+    const children = this.getChildren(rowIndex);
+    for (const childIndex of children) {
+      this.hide(childIndex);
+    }
+  }
+
+  // UnfoldSelf: node.folded = false; if (node.visible) for all children: Show(child)
+  private unfoldSelf(rowIndex: number): void {
+    if (rowIndex < 0 || rowIndex >= this.rowMetadata.length) return;
+    
+    this.rowMetadata[rowIndex].isFolded = false;
+    
+    if (this.rowMetadata[rowIndex].isVisible) {
+      const children = this.getChildren(rowIndex);
+      for (const childIndex of children) {
+        this.show(childIndex);
+      }
+    }
+  }
+
+  // Public interface methods
+
+  // Toggle fold state of a specific row
+  toggleFold(rowIndex: number): void {
+    if (rowIndex >= 0 && rowIndex < this.rowMetadata.length) {
+      const metadata = this.rowMetadata[rowIndex];
+      if (metadata.hasChildren) {
+        if (metadata.isFolded) {
+          this.unfoldSelf(rowIndex);
+        } else {
+          this.foldSelf(rowIndex);
+        }
+      }
+    }
+  }
+
+  // Public folding operations  
+  recursiveFold(rowIndex: number): void {
+    if (rowIndex >= 0 && rowIndex < this.rowMetadata.length) {
+      const metadata = this.rowMetadata[rowIndex];
+      if (metadata.hasChildren) {
+        // RecursiveFold(node): node.folded = true; for all children: { RecursiveFold(); Hide(); }
+        metadata.isFolded = true;
+        const children = this.getChildren(rowIndex);
+        for (const childIndex of children) {
+          this.recursiveFold(childIndex);
+          this.hide(childIndex);
+        }
+      }
+    }
+  }
+
+  recursiveUnfold(rowIndex: number): void {
+    if (rowIndex >= 0 && rowIndex < this.rowMetadata.length) {
+      const metadata = this.rowMetadata[rowIndex];
+      if (metadata.hasChildren) {
+        // RecursiveUnfold(node): node.folded = false; if (visible) for all children: { Show(); RecursiveUnfold(); }
+        metadata.isFolded = false;
+        if (metadata.isVisible) {
+          const children = this.getChildren(rowIndex);
+          for (const childIndex of children) {
+            this.show(childIndex);
+            this.recursiveUnfold(childIndex);
+          }
+        }
       }
     }
   }
@@ -243,7 +333,7 @@ export class TSVDataModel {
     const visibleRows: VisibleRowData[] = [];
     
     for (let i = 0; i < this.data.length; i++) {
-      if (this.isRowVisible(i)) {
+      if (this.rowMetadata[i].isVisible) {
         const metadata = this.rowMetadata[i];
         visibleRows.push({
           originalRowIndex: i,
@@ -256,28 +346,6 @@ export class TSVDataModel {
     }
     
     return visibleRows;
-  }
-
-  // Check if a row should be visible (not hidden by any folded ancestor)
-  private isRowVisible(rowIndex: number): boolean {
-    let currentLevel = this.rowMetadata[rowIndex].indentLevel;
-    
-    // Check all potential ancestors (rows with lower indent levels above this one)
-    for (let i = rowIndex - 1; i >= 0; i--) {
-      const ancestorLevel = this.rowMetadata[i].indentLevel;
-      
-      // If we find a row with lower indent level, it's a potential ancestor
-      if (ancestorLevel < currentLevel) {
-        // If this ancestor is folded, then current row is hidden
-        if (this.rowMetadata[i].isFolded) {
-          return false;
-        }
-        // Update current level to continue checking higher-level ancestors
-        currentLevel = ancestorLevel;
-      }
-    }
-    
-    return true;  // No folded ancestors found
   }
 
   // Get metadata for a specific row

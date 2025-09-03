@@ -106,10 +106,15 @@ class MyTextEditorProvider {
                 // Refresh webview with new visible rows (no document update needed)
                 this.refreshWebviewWithFolding(webviewPanel, model, e.data.focusCell);
             }
-            else if (e.type === 'foldAllDescendants') {
-                // Handle fold all descendants
+            else if (e.type === 'recursiveFold') {
+                // Handle recursive fold/unfold
                 const { rowIndex, folded } = e.data;
-                model.foldAllDescendants(rowIndex, folded);
+                if (folded) {
+                    model.recursiveFold(rowIndex);
+                }
+                else {
+                    model.recursiveUnfold(rowIndex);
+                }
                 // Refresh webview with new visible rows (no document update needed)
                 this.refreshWebviewWithFolding(webviewPanel, model, e.data.focusCell);
             }
