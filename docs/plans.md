@@ -36,7 +36,10 @@ see [[architecture.md]]
 
 #### Phase 5: Table Management
 - [ ] a. Implement row insertion/deletion
-- [ ] b. Implement column insertion/deletion.  Keep in mind that a our file format (newlines, tabs and text) allows ragged arrays, and we support that.  
+- [ ] b. Keep in mind that a our file format (newlines, tabs and text) allows ragged arrays, and we support that.  Accordingly, Enter adds a newline but no tab characters.  It will set focus to the new cell.
+- [ ] c. Implement column insertion/deletion.  {Tab} at the end cell of a line will add a tab.
+- [ ] d. {Backspace} at the beginning of the last cell of a line will delete a tab.
+- [ ] e. {Backspace} if a line is empty will delete the newline.
 - [ ] Handle dynamic table resizing
 - [ ] Add context menus for table operations
 
