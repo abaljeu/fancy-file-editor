@@ -1,0 +1,32 @@
+{
+  "name": "fancy-file-editor",
+  "displayName": "Fancy File Editor",
+  "description": "A VS Code extension prototype that provides a custom text editor for a simple text-based filetype.",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onLanguage=mytxt"],
+  "main": "./dist/extension.js",
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "tsc -p ./",
+    "watch": "tsc -w -p ./",
+    "pretest": "npm run build"
+  },
+  "devDependencies": {
+  "typescript": "^4.0.0",
+  "@types/vscode": "^1.70.0",
+  "@vscode/test-electron": "^1.6.2"
+  },
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "fancy-file-editor.myTextEditor",
+        "displayName": "Fancy File Editor",
+        "selector": [{ "filenamePattern": "*.mytxt" }]
+      }
+    ]
+  }
+}
