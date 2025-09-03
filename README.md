@@ -1,6 +1,6 @@
 # Fancy File Editor
 
-Prototype VS Code extension that demonstrates a Custom Text Editor for files matching `*.mytxt`.
+Prototype VS Code extension that demonstrates a Custom Text Editor for files matching `*.tsb`.
 
 This project is a minimal skeleton intended to be extended. It uses a webview with a <textarea>
 for quick prototyping.

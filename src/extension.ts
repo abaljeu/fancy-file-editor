@@ -49,7 +49,16 @@ class MyTextEditorProvider implements vscode.CustomTextEditorProvider {
     document.getElementById('editor').addEventListener('input', e => {
       vscode.postMessage({ type: 'edit', text: e.target.value });
     });
-  </script>
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Tab') {
+        e.preventDefault();
+        const editor = document.activeElement;
+        if (editor && editor.setRangeText) {
+            // Insert tab at cursor
+            editor.setRangeText('\t', editor.selectionStart, editor.selectionEnd, 'end');
+        }
+    }
+});  </script>
 </body>
 </html>`;
   }

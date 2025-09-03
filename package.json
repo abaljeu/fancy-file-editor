@@ -7,7 +7,7 @@
     "vscode": "^1.70.0"
   },
   "categories": ["Other"],
-  "activationEvents": ["onLanguage=mytxt"],
+  "activationEvents": ["onLanguage=tsb"],
   "main": "./dist/extension.js",
   "scripts": {
     "vscode:prepublish": "npm run build",
@@ -25,7 +25,7 @@
       {
         "viewType": "fancy-file-editor.myTextEditor",
         "displayName": "Fancy File Editor",
-        "selector": [{ "filenamePattern": "*.mytxt" }]
+        "selector": [{ "filenamePattern": "*.tsb" }]
       }
     ]
   }
