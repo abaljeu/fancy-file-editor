@@ -1,0 +1,164 @@
+/* TSV Table Styling */
+body {
+  margin: 0;
+  padding: 8px;
+  height: 100vh;
+  font-family: Arial, sans-serif;
+  box-sizing: border-box;
+  background-color: #fafafa;
+}
+
+#table-container {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 100%;
+  background-color: white;
+}
+
+td {
+  border: 1px dotted #ccc;
+  padding: 0;
+  min-width: 80px;
+  position: relative;
+  height: 20px; /* Minimal height */
+}
+
+.cell-input {
+  width: 100%;
+  height: 20px; /* Fixed height for input elements */
+  border: none;
+  padding: 2px 4px;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  background: transparent;
+  resize: none;
+  outline: none;
+  line-height: 16px;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.cell-input:focus {
+  background: #f0f8ff;
+  border: 1px solid #4285f4;
+  padding: 1px 3px; /* Adjust for border */
+}
+
+.cell-input:hover {
+  background: #f8f9fa;
+}
+
+/* Ensure consistent row heights */
+tr {
+  height: 20px;
+}
+
+/* Scrollbar styling */
+#table-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+#table-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+#table-container::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+#table-container::-webkit-scrollbar-thumb:hover {
+  background: #999;
+}
+
+/* Context Menu Styling */
+.context-menu {
+  position: absolute;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  padding: 4px 0;
+  z-index: 1000;
+  font-size: 12px;
+  min-width: 150px;
+}
+
+.menu-item {
+  padding: 6px 12px;
+  cursor: pointer;
+  color: #333;
+}
+
+.menu-item:hover {
+  background-color: #e6f3ff;
+}
+
+.menu-separator {
+  height: 1px;
+  background-color: #e0e0e0;
+  margin: 4px 0;
+}
+
+/* Row hover effect for better UX */
+tr:hover {
+  background-color: #f8f9fa;
+}
+
+/* Folding Support */
+.fold-margin {
+  width: 20px;
+  min-width: 20px;
+  max-width: 20px;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  border: 1px dotted #ccc;
+  background-color: #f5f5f5;
+  padding: 0;
+  vertical-align: middle;
+}
+
+.fold-indicator {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  font-size: 10px;
+  line-height: 12px;
+  color: #666;
+}
+
+.fold-indicator[data-foldable="false"] {
+  visibility: hidden;
+}
+
+.fold-indicator[data-foldable="true"][data-folded="true"]::before {
+  content: "⏵"; /* Right-pointing triangle for folded */
+}
+
+.fold-indicator[data-foldable="true"][data-folded="false"]::before {
+  content: "⏷"; /* Down-pointing triangle for unfolded */
+}
+
+/* Hover effect for foldable indicators */
+.fold-margin:hover .fold-indicator[data-foldable="true"]::before {
+  content: "⌄"; /* Wide V shape on hover */
+  color: #333;
+}
+
+.fold-margin:hover {
+  background-color: #eaeaea;
+}
+
+/* Ensure first cell respects indentation */
+tr td:nth-child(2) input {
+  border: none;
+  background: transparent;
+}

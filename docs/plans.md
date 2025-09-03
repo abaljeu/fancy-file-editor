@@ -54,12 +54,21 @@ see [[architecture.md]]
   - [x] Column operations (add, remove, ragged arrays)
   - [x] Edge cases and error handling
   - [x] Data integrity and round-trip consistency
-- [ ] Integration Tests
-  - [ ]
+- [x] Unit Test Suite (64 comprehensive tests)
+  - [x] TSVDataModel unit tests (31 tests)
+  - [x] TSVDataModel complex workflows (8 tests) 
+  - [x] MyTextEditorProvider unit tests (12 tests)
+  - [x] Webview logic unit tests (13 tests)
+- [ ] Integration Tests (Future Phase)
+  - [ ] VS Code Extension ↔ Webview communication
+  - [ ] DOM manipulation and keyboard event handling
+  - [ ] File system operations and document lifecycle
 
 #### Phase 7: Enhanced Features
 
-- [ ] Add data validation for cells
+- [ ] a. Folding
+  - [ ] ... we need the details of folding listed here.
+
 - [ ] Implement proper TSV escaping for special characters
 - [ ] Implement cell formatting options
 - [ ] Add search/filter functionality

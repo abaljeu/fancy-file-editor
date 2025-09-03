@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { TSVDataModel, CellEdit } from './tsvDataModel';
+import { TSVDataModel, CellEdit, CellPosition } from './tsvDataModel';
 
 export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
@@ -86,17 +86,29 @@ class MyTextEditorProvider implements vscode.CustomTextEditorProvider {
           // Update document and refresh webview with focus on previous column
           this.updateDocumentAndRefresh(document, webviewPanel, model, { row: rowIndex, col: focusCol });
         }
+      } else if (e.type === 'toggleFold') {
+        // Handle fold toggle
+        const { rowIndex } = e.data;
+        model.toggleFold(rowIndex);
+        
+        // Refresh webview with new visible rows (no document update needed)
+        this.refreshWebviewWithFolding(webviewPanel, model, e.data.focusCell);
+      } else if (e.type === 'foldAllDescendants') {
+        // Handle fold all descendants
+        const { rowIndex, folded } = e.data;
+        model.foldAllDescendants(rowIndex, folded);
+        
+        // Refresh webview with new visible rows (no document update needed)
+        this.refreshWebviewWithFolding(webviewPanel, model, e.data.focusCell);
       }
     });
 
-    // Send structured data to webview instead of raw text
-    const tableData = tsvModel.getData();
-    const dimensions = tsvModel.getDimensions();
+    // Send visible rows data to webview with folding support
+    const visibleRows = tsvModel.getVisibleRows();
     webviewPanel.webview.postMessage({ 
       type: 'init', 
       data: {
-        table: tableData,
-        dimensions: dimensions
+        visibleRows: visibleRows
       }
     });
 
@@ -118,14 +130,24 @@ class MyTextEditorProvider implements vscode.CustomTextEditorProvider {
     edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), newTsvText);
     vscode.workspace.applyEdit(edit);
 
-    // Send updated data to webview
-    const tableData = model.getData();
-    const dimensions = model.getDimensions();
+    // Send updated visible rows to webview
+    const visibleRows = model.getVisibleRows();
     webviewPanel.webview.postMessage({ 
-      type: 'init', 
+      type: 'refresh', 
       data: {
-        table: tableData,
-        dimensions: dimensions,
+        visibleRows: visibleRows,
+        focusCell: focusCell
+      }
+    });
+  }
+
+  // Refresh webview with folding support (no document update)
+  private refreshWebviewWithFolding(webviewPanel: vscode.WebviewPanel, model: TSVDataModel, focusCell?: CellPosition): void {
+    const visibleRows = model.getVisibleRows();
+    webviewPanel.webview.postMessage({ 
+      type: 'refresh', 
+      data: {
+        visibleRows: visibleRows,
         focusCell: focusCell
       }
     });

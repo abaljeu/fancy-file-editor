@@ -15,6 +15,11 @@
     <div class="menu-item" onclick="insertRowBefore()">Insert Row Before</div>
     <div class="menu-separator"></div>
     <div class="menu-item" onclick="deleteRow()">Delete Row</div>
+    <div class="menu-separator"></div>
+    <div class="menu-item" onclick="foldRow()">Fold</div>
+    <div class="menu-item" onclick="unfoldRow()">Unfold</div>
+    <div class="menu-item" onclick="foldAllDescendants()">Fold All Descendants</div>
+    <div class="menu-item" onclick="unfoldAllDescendants()">Unfold All Descendants</div>
   </div>
   
   <script>
@@ -155,79 +160,51 @@
       hideContextMenu();
     }
     
-    // Enhanced table rendering with context menu support
-    function renderTable(tableData, dimensions) {
+    // Enhanced table rendering with folding support
+    function renderTable(visibleRows) {
       const table = document.getElementById('tsv-table');
       table.innerHTML = '';
       
-      tableData.forEach((row, rowIndex) => {
+      visibleRows.forEach((rowData) => {
         const tr = document.createElement('tr');
+        tr.dataset.originalRow = rowData.originalRowIndex;
         
         // Add right-click context menu to row
-        tr.addEventListener('contextmenu', (event) => showContextMenu(event, rowIndex));
+        tr.addEventListener('contextmenu', (event) => showContextMenu(event, rowData.originalRowIndex));
         
-        row.forEach((cellValue, colIndex) => {
+        // Add fold indicator column
+        const foldTd = document.createElement('td');
+        foldTd.className = 'fold-margin';
+        
+        if (rowData.isFoldable) {
+          const foldIndicator = document.createElement('span');
+          foldIndicator.className = 'fold-indicator';
+          foldIndicator.dataset.foldable = 'true';
+          foldIndicator.dataset.folded = rowData.isFolded ? 'true' : 'false';
+          foldIndicator.addEventListener('click', () => toggleFold(rowData.originalRowIndex));
+          foldTd.appendChild(foldIndicator);
+        }
+        
+        tr.appendChild(foldTd);
+        
+        // Add data cells with proper indentation
+        rowData.cells.forEach((cellValue, colIndex) => {
           const td = document.createElement('td');
           const input = document.createElement('input');
           input.type = 'text';
           input.className = 'cell-input';
           input.value = cellValue || '';
-          input.dataset.row = rowIndex;
+          input.dataset.row = rowData.originalRowIndex;
           input.dataset.col = colIndex;
+          
+          // Apply indentation to first cell
+          if (colIndex === 0) {
+            input.style.paddingLeft = (rowData.indentLevel * 20) + 'px';
+          }
           
           // Handle cell edits
           input.addEventListener('input', handleCellEdit);
           
-          // Handle keyboard navigation and shortcuts
-          input.addEventListener('keydown', (event) => {
-            // Enter key: Insert row after current row
-            if (event.key === 'Enter') {
-              vscode.postMessage({
-                type: 'insertRow',
-                data: { rowIndex: rowIndex, position: 'after' }
-              });
-              event.preventDefault();
-              return;
-            }
-            
-            // Ctrl+Delete: Delete row
-            if (event.ctrlKey && event.key === 'Delete') {
-              vscode.postMessage({
-                type: 'deleteRow',
-                data: { rowIndex: rowIndex }
-              });
-              event.preventDefault();
-              return;
-            }
-            
-            // Backspace handling
-            if (event.key === 'Backspace' && input.selectionStart === 0) {
-              // Check if this is an empty line (single empty cell)
-              const currentRow = document.querySelector(`tr:nth-child(${rowIndex + 1})`);
-              const cellsInRow = currentRow ? currentRow.querySelectorAll('input').length : 0;
-              
-              if (cellsInRow === 1 && input.value === '') {
-                // Empty line: delete the row
-                vscode.postMessage({
-                  type: 'deleteRow',
-                  data: { rowIndex: rowIndex }
-                });
-                event.preventDefault();
-                return;
-              } else if (input.value === '' && colIndex + 1 >= cellsInRow && cellsInRow > 1) {
-                // Last cell of row with multiple cells: remove column
-                vscode.postMessage({
-                  type: 'removeColumn',
-                  data: { rowIndex: rowIndex, focusCol: colIndex - 1 }
-                });
-                event.preventDefault();
-                return;
-              }
-            }
-            
-            // Regular navigation for other keys
-            handleKeyNavigation(event);
-          });
           
           td.appendChild(input);
           tr.appendChild(td);
@@ -236,15 +213,126 @@
         table.appendChild(tr);
       });
     }
+
+    // Handle keyboard events for cells
+    function handleKeyDown(event, rowIndex, colIndex) {
+      // Ctrl+. : Toggle fold
+      if (event.ctrlKey && event.key === '.') {
+        vscode.postMessage({
+          type: 'toggleFold',
+          data: { rowIndex: rowIndex, focusCell: { row: rowIndex, col: colIndex } }
+        });
+        event.preventDefault();
+        return;
+      }
+      
+      // Enter key: Insert row after current row
+      if (event.key === 'Enter') {
+        vscode.postMessage({
+          type: 'insertRow',
+          data: { rowIndex: rowIndex, position: 'after' }
+        });
+        event.preventDefault();
+        return;
+      }
+      
+      // Ctrl+Delete: Delete row
+      if (event.ctrlKey && event.key === 'Delete') {
+        vscode.postMessage({
+          type: 'deleteRow',
+          data: { rowIndex: rowIndex }
+        });
+        event.preventDefault();
+        return;
+      }
+      
+      const input = event.target;
+      
+      // Backspace handling
+      if (event.key === 'Backspace' && input.selectionStart === 0) {
+        // Check if this is an empty line (single empty cell)
+        const currentRow = document.querySelector(`tr[data-original-row="${rowIndex}"]`);
+        const cellsInRow = currentRow ? currentRow.querySelectorAll('input').length : 0;
+        
+        if (cellsInRow === 1 && input.value === '') {
+          // Empty line: delete the row
+          vscode.postMessage({
+            type: 'deleteRow',
+            data: { rowIndex: rowIndex }
+          });
+          event.preventDefault();
+          return;
+        } else if (input.value === '' && colIndex + 1 >= cellsInRow && cellsInRow > 1) {
+          // Last cell of row with multiple cells: remove column
+          vscode.postMessage({
+            type: 'removeColumn',
+            data: { rowIndex: rowIndex, focusCol: colIndex - 1 }
+          });
+          event.preventDefault();
+          return;
+        }
+      }
+      
+      // Regular navigation for other keys
+      handleKeyNavigation(event);
+    }
     
+    // Folding functions
+    function toggleFold(rowIndex) {
+      vscode.postMessage({
+        type: 'toggleFold',
+        data: { rowIndex: rowIndex }
+      });
+    }
+
+    function foldRow() {
+      if (contextMenuRow !== -1) {
+        vscode.postMessage({
+          type: 'toggleFold',
+          data: { rowIndex: contextMenuRow }
+        });
+      }
+      hideContextMenu();
+    }
+
+    function unfoldRow() {
+      if (contextMenuRow !== -1) {
+        vscode.postMessage({
+          type: 'toggleFold',
+          data: { rowIndex: contextMenuRow }
+        });
+      }
+      hideContextMenu();
+    }
+
+    function foldAllDescendants() {
+      if (contextMenuRow !== -1) {
+        vscode.postMessage({
+          type: 'foldAllDescendants',
+          data: { rowIndex: contextMenuRow, folded: true }
+        });
+      }
+      hideContextMenu();
+    }
+
+    function unfoldAllDescendants() {
+      if (contextMenuRow !== -1) {
+        vscode.postMessage({
+          type: 'foldAllDescendants',
+          data: { rowIndex: contextMenuRow, folded: false }
+        });
+      }
+      hideContextMenu();
+    }
+
     // Hide context menu when clicking elsewhere
     document.addEventListener('click', hideContextMenu);
     
     // Listen for messages from provider
     window.addEventListener('message', event => {
-      if (event.data.type === 'init') {
-        const { table, dimensions, focusCell } = event.data.data;
-        renderTable(table, dimensions);
+      if (event.data.type === 'init' || event.data.type === 'refresh') {
+        const { visibleRows, focusCell } = event.data.data;
+        renderTable(visibleRows);
         
         // Focus specific cell if requested
         if (focusCell) {
