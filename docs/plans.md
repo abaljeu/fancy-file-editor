@@ -40,6 +40,7 @@ see [[architecture.md]]
 - [x] c. Implement column insertion.  {Tab} at the end cell of a line will add a tab.
 - [x] d. Implement column deletion.  {Backspace} at the beginning of the last cell of a line will delete a tab.
 - [x] e. {Backspace} if a line is empty will delete the newline.
+- [x] f. Amendment to b.  like in Excel, when Enter is used, it should bring us to the column of the first data on the previous line.  This means if the line starts with tabs, we add matching tabs.
 - [ ] Handle dynamic table resizing
 - [ ] Add context menus for table operations
 
