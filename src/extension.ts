@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
@@ -33,34 +35,8 @@ class MyTextEditorProvider implements vscode.CustomTextEditorProvider {
   }
 
   private getHtml(webview: vscode.Webview) {
-    // For a prototype we keep the html inline. In a real project we'd load from filesystem and
-    // use proper content security policies and resource URIs.
-    return `<!DOCTYPE html>
-<html>
-<body style="margin:0;padding:0;height:100vh;">
-  <textarea id="editor" style="width:100%; height:100%; box-sizing: border-box; font-family: monospace;"></textarea>
-  <script>
-    const vscode = acquireVsCodeApi();
-    window.addEventListener('message', event => {
-      if (event.data.type === 'init') {
-        document.getElementById('editor').value = event.data.text;
-      }
-    });
-    document.getElementById('editor').addEventListener('input', e => {
-      vscode.postMessage({ type: 'edit', text: e.target.value });
-    });
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Tab') {
-        e.preventDefault();
-        const editor = document.activeElement;
-        if (editor && editor.setRangeText) {
-            // Insert tab at cursor
-            editor.setRangeText('\t', editor.selectionStart, editor.selectionEnd, 'end');
-        }
-    }
-});  </script>
-</body>
-</html>`;
+    const htmlPath = path.join(this.context.extensionPath, 'media', 'webview.html');
+    return fs.readFileSync(htmlPath, 'utf8');
   }
 }
 

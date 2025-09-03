@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;height:100vh;">
+  <textarea id="editor" style="width:100%; height:100%; box-sizing: border-box; font-family: Arial, sans-serif;"></textarea>
+  <script>
+    const vscode = acquireVsCodeApi();
+    window.addEventListener('message', event => {
+      if (event.data.type === 'init') {
+        document.getElementById('editor').value = event.data.text;
+      }
+    });
+    document.getElementById('editor').addEventListener('input', e => {
+      vscode.postMessage({ type: 'edit', text: e.target.value });
+    });
+  </script>
+</body>
+</html>

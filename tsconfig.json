@@ -3,11 +3,13 @@
     "module": "commonjs",
     "target": "es2019",
     "outDir": "dist",
-    "lib": ["es2019"],
+    "lib": ["esnext", "dom"],
     "sourceMap": true,
     "rootDir": "src",
     "strict": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
   },
   "exclude": ["node_modules", "dist"]
 }
