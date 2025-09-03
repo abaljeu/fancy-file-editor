@@ -3,47 +3,65 @@
 ## TSV Editor with Individual Cell TextAreas
 
 ### Goal
-Transform the current single textarea editor into a TSV editor where each cell is its own textarea, allowing direct editing of individual cells while maintaining the TSV file structure.
+Transform the current single textarea editor into a TSV editor where each cell is its own textarea, following VS Code's Document-Webview-Provider pattern.
 
-### Technical Approach
+see [[architecture.md]]
 
-#### 1. Parse TSV Data
-- [ ] Split the document text by newlines to get rows
-- [ ] Split each row by tabs to get individual cells
-- [ ] Create a 2D array data structure to represent the table
+### Linear Implementation Plan
 
-#### 2. Render as HTML Table
-- [ ] Replace the single textarea with an HTML `<table>` element
-- [ ] Each cell becomes a `<textarea>` or `<input>` element
-- [ ] Use CSS to style the table for proper alignment and appearance
+#### Phase 1: Data Model Foundation ✓
+- [x] Create `TSVDataModel` class in separate file (`src/tsvDataModel.ts`)
+- [x] Implement TSV parsing functions (`parseTSV`, `serializeTSV`)
+- [x] Define TypeScript interfaces (`CellPosition`, `CellEdit`, `TSVTable`)
+- [x] Add cell update and data management methods
+- [x] Import data model into extension
 
-#### 3. Handle Individual Cell Edits
-- [ ] Add event listeners to each cell's textarea/input
-- [ ] On cell change, update the corresponding position in the data structure
-- [ ] Serialize the 2D array back to TSV format (join cells with tabs, rows with newlines)
-- [ ] Send the complete TSV string back to VS Code via postMessage
+#### Phase 2: Provider Enhancement
+- [ ] Update `MyTextEditorProvider` to use `TSVDataModel`
+- [ ] Change provider to send structured data (not raw text) to webview
+- [ ] Implement `CellEdit` message handling in provider
+- [ ] Add data model instance management per document
+- [ ] Replace full-text replacement with targeted cell updates
 
-#### 4. Dynamic Table Management
-- [ ] Support adding/removing rows and columns
-- [ ] Handle empty cells gracefully
-- [ ] Maintain proper TSV structure even with irregular data
+#### Phase 3: Webview Table Rendering
+- [ ] Design HTML table structure in `media/webview.html`
+- [ ] Add CSS styling for table layout and cell inputs
+- [ ] Implement JavaScript to render table from structured data
+- [ ] Create individual input elements for each cell
+- [ ] Add responsive design for large tables
 
-### Implementation Steps
+#### Phase 4: Cell Interaction
+- [ ] Add event listeners for individual cell edits
+- [ ] Implement `CellEdit` message sending to provider
+- [ ] Add cell navigation (tab, arrow keys)
+- [ ] Handle focus management between cells
+- [ ] Add visual feedback for active cell
 
-1. **Phase 1: Basic TSV Parsing**
-   - [ ] Modify webview HTML to include table structure
-   - [ ] Add JavaScript functions to parse TSV into 2D array
-   - [ ] Render initial table from parsed data
+#### Phase 5: Table Management
+- [ ] Implement row insertion/deletion
+- [ ] Implement column insertion/deletion
+- [ ] Handle dynamic table resizing
+- [ ] Add context menus for table operations
+- [ ] Maintain proper TSV structure with operations
 
-2. **Phase 2: Cell Editing**
-   - [ ] Add input event handlers for each cell
-   - [ ] Implement TSV serialization function
-   - [ ] Wire up edit synchronization with extension
+#### Phase 6: Enhanced Features
+- [ ] Add data validation for cells
+- [ ] Implement proper TSV escaping for special characters
+- [ ] Add virtual scrolling for large tables
+- [ ] Implement cell formatting options
+- [ ] Add search/filter functionality
 
-3. **Phase 3: Enhanced Features**
-   - [ ] Add row/column insertion/deletion
-   - [ ] Improve CSS styling for better UX
-   - [ ] Handle edge cases (empty cells, special characters)
+#### Phase 7: Performance & Polish
+- [ ] Optimize rendering for large datasets
+- [ ] Add debouncing for rapid edits
+- [ ] Implement proper error handling
+- [ ] Add comprehensive testing
+- [ ] Documentation and examples
+
+### Current Status
+- **Completed**: Phase 1 (Data Model Foundation)
+- **Next**: Phase 2 (Provider Enhancement)
+- **Current Provider**: Basic text-based, needs TSV model integration
 
 ### Technical Considerations
 
@@ -59,13 +77,8 @@ Transform the current single textarea editor into a TSV editor where each cell i
 - [ ] Handling tab characters within cell content
 - [ ] Synchronization complexity between many textareas and single document
 
-#### Potential Solutions
+#### Solutions
 - [ ] Use virtual scrolling for large tables
 - [ ] Implement proper TSV escaping rules
 - [ ] Use contenteditable divs instead of textareas for better performance
 - [ ] Debounce edit events to avoid excessive updates
-
-### File Structure Changes Needed
-- [ ] Update `media/webview.html` with table-based layout
-- [ ] Modify extension.ts message handling for cell-based edits
-- [ ] Add CSS for table styling and responsive design

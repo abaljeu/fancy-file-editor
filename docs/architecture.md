@@ -9,4 +9,25 @@ This project is built on the foundational elements required for a custom VS Code
 - **Webview-based UI**: Implements `CustomTextEditorProvider` to provide a webview-based editing experience, handling file content and user edits via message passing.
 - **Extension Manifest**: Declares the custom editor and activation events in `package.json` under `contributes.customEditors` and `activationEvents`.
 
-## next section
+## Architecture Pattern: Document-Webview-Provider (MVP-style)
+
+- **Document (Model)**
+- `vscode.TextDocument` - VS Code manages the file content
+- `TSVDataModel` - business logic and parsing (in `src/tsvDataModel.ts`)
+- VS Code handles persistence, undo/redo, diff, etc.
+
+- **Webview (View)**
+- HTML/CSS/JS in `media/webview.html` - pure presentation layer
+- Receives structured data from provider, sends user actions back
+- Should be stateless - provider holds the truth
+
+- **Provider (Controller)**
+- `MyTextEditorProvider` in `src/extension.ts` - mediates between document and webview
+- Handles document changes, webview messages
+- Contains business logic orchestration for TSV file type
+
+- **Message Flow:**
+
+```
+Document <-> Provider <-> Webview
+```
