@@ -48,14 +48,17 @@ class MyTextEditorProvider implements vscode.CustomTextEditorProvider {
       } else if (e.type === 'insertRow') {
         // Handle row insertion
         const { rowIndex, position } = e.data; // position: 'before' or 'after'
+        let newRowIndex: number;
         if (position === 'after') {
           model.insertRowAfter(rowIndex);
+          newRowIndex = rowIndex + 1;
         } else {
           model.insertRowBefore(rowIndex);
+          newRowIndex = rowIndex;
         }
         
-        // Update document and refresh webview
-        this.updateDocumentAndRefresh(document, webviewPanel, model);
+        // Update document and refresh webview with focus on new row
+        this.updateDocumentAndRefresh(document, webviewPanel, model, { row: newRowIndex, col: 0 });
       } else if (e.type === 'deleteRow') {
         // Handle row deletion
         const { rowIndex } = e.data;
@@ -83,7 +86,12 @@ class MyTextEditorProvider implements vscode.CustomTextEditorProvider {
     });
   }
 
-  private updateDocumentAndRefresh(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel, model: TSVDataModel) {
+  private updateDocumentAndRefresh(
+    document: vscode.TextDocument, 
+    webviewPanel: vscode.WebviewPanel, 
+    model: TSVDataModel, 
+    focusCell?: { row: number; col: number }
+  ) {
     // Update the document with new TSV content
     const newTsvText = model.toTSV();
     const edit = new vscode.WorkspaceEdit();
@@ -97,7 +105,8 @@ class MyTextEditorProvider implements vscode.CustomTextEditorProvider {
       type: 'init', 
       data: {
         table: tableData,
-        dimensions: dimensions
+        dimensions: dimensions,
+        focusCell: focusCell
       }
     });
   }

@@ -203,8 +203,18 @@
     // Listen for messages from provider
     window.addEventListener('message', event => {
       if (event.data.type === 'init') {
-        const { table, dimensions } = event.data.data;
+        const { table, dimensions, focusCell } = event.data.data;
         renderTable(table, dimensions);
+        
+        // Focus specific cell if requested
+        if (focusCell) {
+          setTimeout(() => {
+            const targetInput = document.querySelector(`[data-row="${focusCell.row}"][data-col="${focusCell.col}"]`);
+            if (targetInput) {
+              targetInput.focus();
+            }
+          }, 50); // Small delay to ensure table is rendered
+        }
       }
     });
   </script>
