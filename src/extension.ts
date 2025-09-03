@@ -45,6 +45,24 @@ class MyTextEditorProvider implements vscode.CustomTextEditorProvider {
         const edit = new vscode.WorkspaceEdit();
         edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), newTsvText);
         vscode.workspace.applyEdit(edit);
+      } else if (e.type === 'insertRow') {
+        // Handle row insertion
+        const { rowIndex, position } = e.data; // position: 'before' or 'after'
+        if (position === 'after') {
+          model.insertRowAfter(rowIndex);
+        } else {
+          model.insertRowBefore(rowIndex);
+        }
+        
+        // Update document and refresh webview
+        this.updateDocumentAndRefresh(document, webviewPanel, model);
+      } else if (e.type === 'deleteRow') {
+        // Handle row deletion
+        const { rowIndex } = e.data;
+        model.deleteRow(rowIndex);
+        
+        // Update document and refresh webview
+        this.updateDocumentAndRefresh(document, webviewPanel, model);
       }
     });
 
@@ -62,6 +80,25 @@ class MyTextEditorProvider implements vscode.CustomTextEditorProvider {
     // Clean up model when webview is disposed
     webviewPanel.onDidDispose(() => {
       this.tsvModels.delete(document.uri.toString());
+    });
+  }
+
+  private updateDocumentAndRefresh(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel, model: TSVDataModel) {
+    // Update the document with new TSV content
+    const newTsvText = model.toTSV();
+    const edit = new vscode.WorkspaceEdit();
+    edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), newTsvText);
+    vscode.workspace.applyEdit(edit);
+
+    // Send updated data to webview
+    const tableData = model.getData();
+    const dimensions = model.getDimensions();
+    webviewPanel.webview.postMessage({ 
+      type: 'init', 
+      data: {
+        table: tableData,
+        dimensions: dimensions
+      }
     });
   }
 

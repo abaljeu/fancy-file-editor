@@ -10,39 +10,15 @@
     </table>
   </div>
   
+  <!-- Context Menu -->
+  <div id="context-menu" class="context-menu" style="display: none;">
+    <div class="menu-item" onclick="insertRowBefore()">Insert Row Before</div>
+    <div class="menu-separator"></div>
+    <div class="menu-item" onclick="deleteRow()">Delete Row</div>
+  </div>
+  
   <script>
     const vscode = acquireVsCodeApi();
-    
-    // Render table from structured data
-    function renderTable(tableData, dimensions) {
-      const table = document.getElementById('tsv-table');
-      table.innerHTML = '';
-      
-      tableData.forEach((row, rowIndex) => {
-        const tr = document.createElement('tr');
-        
-        row.forEach((cellValue, colIndex) => {
-          const td = document.createElement('td');
-          const input = document.createElement('input');
-          input.type = 'text';
-          input.className = 'cell-input';
-          input.value = cellValue || '';
-          input.dataset.row = rowIndex;
-          input.dataset.col = colIndex;
-          
-          // Handle cell edits
-          input.addEventListener('input', handleCellEdit);
-          
-          // Handle keyboard navigation
-          input.addEventListener('keydown', handleKeyNavigation);
-          
-          td.appendChild(input);
-          tr.appendChild(td);
-        });
-        
-        table.appendChild(tr);
-      });
-    }
     
     // Handle individual cell edit
     function handleCellEdit(event) {
@@ -120,6 +96,109 @@
         }
       }
     }
+    
+    // Context menu and row operations
+    let contextMenuRow = -1;
+    
+    // Show context menu on right click
+    function showContextMenu(event, rowIndex) {
+      event.preventDefault();
+      contextMenuRow = rowIndex;
+      const menu = document.getElementById('context-menu');
+      menu.style.display = 'block';
+      menu.style.left = event.pageX + 'px';
+      menu.style.top = event.pageY + 'px';
+    }
+    
+    // Hide context menu
+    function hideContextMenu() {
+      document.getElementById('context-menu').style.display = 'none';
+    }
+    
+    // Row operation functions
+    function insertRowBefore() {
+      vscode.postMessage({
+        type: 'insertRow',
+        data: { rowIndex: contextMenuRow, position: 'before' }
+      });
+      hideContextMenu();
+    }
+    
+    function insertRowAfter() {
+      vscode.postMessage({
+        type: 'insertRow',
+        data: { rowIndex: contextMenuRow, position: 'after' }
+      });
+      hideContextMenu();
+    }
+    
+    function deleteRow() {
+      vscode.postMessage({
+        type: 'deleteRow',
+        data: { rowIndex: contextMenuRow }
+      });
+      hideContextMenu();
+    }
+    
+    // Enhanced table rendering with context menu support
+    function renderTable(tableData, dimensions) {
+      const table = document.getElementById('tsv-table');
+      table.innerHTML = '';
+      
+      tableData.forEach((row, rowIndex) => {
+        const tr = document.createElement('tr');
+        
+        // Add right-click context menu to row
+        tr.addEventListener('contextmenu', (event) => showContextMenu(event, rowIndex));
+        
+        row.forEach((cellValue, colIndex) => {
+          const td = document.createElement('td');
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'cell-input';
+          input.value = cellValue || '';
+          input.dataset.row = rowIndex;
+          input.dataset.col = colIndex;
+          
+          // Handle cell edits
+          input.addEventListener('input', handleCellEdit);
+          
+          // Handle keyboard navigation and shortcuts
+          input.addEventListener('keydown', (event) => {
+            // Enter key: Insert row after current row
+            if (event.key === 'Enter') {
+              vscode.postMessage({
+                type: 'insertRow',
+                data: { rowIndex: rowIndex, position: 'after' }
+              });
+              event.preventDefault();
+              return;
+            }
+            
+            // Ctrl+Delete: Delete row
+            if (event.ctrlKey && event.key === 'Delete') {
+              vscode.postMessage({
+                type: 'deleteRow',
+                data: { rowIndex: rowIndex }
+              });
+              event.preventDefault();
+              return;
+            }
+            
+            // Regular navigation for other keys
+            handleKeyNavigation(event);
+          });
+          
+          td.appendChild(input);
+          tr.appendChild(td);
+        });
+        
+        table.appendChild(tr);
+      });
+    }
+    
+    // Hide context menu when clicking elsewhere
+    document.addEventListener('click', hideContextMenu);
     
     // Listen for messages from provider
     window.addEventListener('message', event => {

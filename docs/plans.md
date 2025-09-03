@@ -30,16 +30,15 @@ see [[architecture.md]]
 - [x] Create individual input elements for each cell
 
 #### Phase 4: Cell Interaction
-- [ ] Add cell navigation (tab, arrow keys)
-- [ ] tab, shift-tab (cell right,left), up, down
-- [ ] Handle focus management between cells
+- [x] Add cell navigation (tab, arrow keys)
+- [x] tab, shift-tab (cell right,left), up, down
+- [x] Handle focus management between cells
 
 #### Phase 5: Table Management
-- [ ] Implement row insertion/deletion
-- [ ] Implement column insertion/deletion
+- [ ] a. Implement row insertion/deletion
+- [ ] b. Implement column insertion/deletion.  Keep in mind that a our file format (newlines, tabs and text) allows ragged arrays, and we support that.  
 - [ ] Handle dynamic table resizing
 - [ ] Add context menus for table operations
-- [ ] Maintain proper TSV structure with operations
 
 #### Phase 6: Enhanced Features
 - [ ] Add data validation for cells
