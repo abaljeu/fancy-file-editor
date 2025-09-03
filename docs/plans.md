@@ -30,11 +30,9 @@ see [[architecture.md]]
 - [x] Create individual input elements for each cell
 
 #### Phase 4: Cell Interaction
-- [ ] Add event listeners for individual cell edits
-- [ ] Implement `CellEdit` message sending to provider
 - [ ] Add cell navigation (tab, arrow keys)
+- [ ] tab, shift-tab (cell right,left), up, down
 - [ ] Handle focus management between cells
-- [ ] Add visual feedback for active cell
 
 #### Phase 5: Table Management
 - [ ] Implement row insertion/deletion

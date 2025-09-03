@@ -33,6 +33,9 @@
           // Handle cell edits
           input.addEventListener('input', handleCellEdit);
           
+          // Handle keyboard navigation
+          input.addEventListener('keydown', handleKeyNavigation);
+          
           td.appendChild(input);
           tr.appendChild(td);
         });
@@ -55,6 +58,67 @@
           value: input.value
         }
       });
+    }
+    
+    // Handle keyboard navigation
+    function handleKeyNavigation(event) {
+      const input = event.target;
+      const row = parseInt(input.dataset.row);
+      const col = parseInt(input.dataset.col);
+      
+      let targetRow = row;
+      let targetCol = col;
+      let preventDefault = false;
+      
+      switch(event.key) {
+        case 'Tab':
+          if (event.shiftKey) {
+            // Shift+Tab: move left
+            targetCol = col - 1;
+          } else {
+            // Tab: move right
+            targetCol = col + 1;
+          }
+          preventDefault = true;
+          break;
+          
+        case 'ArrowUp':
+          targetRow = row - 1;
+          preventDefault = true;
+          break;
+          
+        case 'ArrowDown':
+          targetRow = row + 1;
+          preventDefault = true;
+          break;
+          
+        case 'ArrowLeft':
+          // Only navigate if cursor is at start of input
+          if (input.selectionStart === 0) {
+            targetCol = col - 1;
+            preventDefault = true;
+          }
+          break;
+          
+        case 'ArrowRight':
+          // Only navigate if cursor is at end of input
+          if (input.selectionStart === input.value.length) {
+            targetCol = col + 1;
+            preventDefault = true;
+          }
+          break;
+      }
+      
+      if (preventDefault) {
+        event.preventDefault();
+        
+        // Find target cell and focus it
+        const targetInput = document.querySelector(`[data-row="${targetRow}"][data-col="${targetCol}"]`);
+        if (targetInput) {
+          targetInput.focus();
+          targetInput.select(); // Select all text in the target cell
+        }
+      }
     }
     
     // Listen for messages from provider
