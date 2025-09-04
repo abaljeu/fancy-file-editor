@@ -102,15 +102,112 @@ export class TSVDataModel {
   updateCell(edit: CellEdit): void {
     const { row, col } = edit.position;
     
+    // Store previous indent level for comparison (if row exists)
+    const previousIndentLevel = this.rows[row]?.indentLevel ?? 0;
+    
     // Expand table if needed
     while (this.data.length <= row) {
       this.data.push(['']);
+      // Create corresponding RowData for new rows
+      const newRowIndex = this.data.length - 1;
+      const newRowData: RowData = {
+        originalRowIndex: newRowIndex,
+        indentLevel: 0, // Will be recalculated below
+        isFolded: false,
+        isVisible: true,
+        cells: this.data[newRowIndex]
+      };
+      this.rows.push(newRowData);
     }
+    
     while (this.data[row].length <= col) {
       this.data[row].push('');
     }
     
+    // Make the change
     this.data[row][col] = edit.value;
+    
+    // Reassess indent level and update RowData
+    const newIndentLevel = this.calculateIndentLevel(row);
+    if (this.rows[row]) {
+      this.rows[row].indentLevel = newIndentLevel;
+      
+      // Handle visibility changes based on indent level changes
+      if (newIndentLevel > previousIndentLevel) {
+        // Indent increased - check if new parent is folded and unfold hierarchy if needed
+        this.handleIndentIncrease(row, newIndentLevel);
+      } else if (newIndentLevel < previousIndentLevel) {
+        // Indent decreased - force unfold (no recurse) if it has children
+        if (this.checkHasChildren(row)) {
+          this.nodeUnfold(row, false);
+        }
+      }
+      
+      // Assumption: if it was edited, it was visible and should remain visible
+      // Ensure this row is visible by unfolding any ancestors that might hide it
+      this.ensureRowVisible(row);
+    }
+  }
+  
+  // Helper: Handle visibility when indent level increases
+  private handleIndentIncrease(rowIndex: number, newIndentLevel: number): void {
+    // Find the new parent (first row above with indent level < newIndentLevel)
+    let parentIndex = -1;
+    for (let i = rowIndex - 1; i >= 0; i--) {
+      if (this.rows[i].indentLevel < newIndentLevel) {
+        parentIndex = i;
+        break;
+      }
+    }
+    
+    if (parentIndex >= 0) {
+      // If parent is folded, unfold the hierarchy up to make this row visible
+      this.unfoldAncestorHierarchy(parentIndex);
+    }
+  }
+  
+  // Helper: Recursively unfold ancestor hierarchy to make a row visible
+  private unfoldAncestorHierarchy(rowIndex: number): void {
+    if (rowIndex < 0 || rowIndex >= this.rows.length) return;
+    
+    const rowData = this.rows[rowIndex];
+    
+    // If this ancestor is not visible, find its parent and unfold up first
+    if (!rowData.isVisible) {
+      for (let i = rowIndex - 1; i >= 0; i--) {
+        if (this.rows[i].indentLevel < rowData.indentLevel) {
+          this.unfoldAncestorHierarchy(i);
+          break;
+        }
+      }
+    }
+    
+    // Now unfold this ancestor if it's folded and has children
+    if (rowData.isFolded && this.checkHasChildren(rowIndex)) {
+      this.nodeUnfold(rowIndex, false);
+    }
+  }
+  
+  // Helper: Make sure a row is visible by unfolding any ancestors that hide it
+  private ensureRowVisible(rowIndex: number): void {
+    if (rowIndex < 0 || rowIndex >= this.rows.length) return;
+    
+    const currentRow = this.rows[rowIndex];
+    const currentIndent = currentRow.indentLevel;
+    
+    // Find all ancestors that could be hiding this row
+    for (let i = rowIndex - 1; i >= 0; i--) {
+      const ancestorRow = this.rows[i];
+      if (ancestorRow.indentLevel < currentIndent) {
+        // This is an ancestor - if it's folded, unfold it
+        if (ancestorRow.isFolded && this.checkHasChildren(i)) {
+          this.nodeUnfold(i, false);
+        }
+      }
+    }
+    
+    // Make sure the row itself is visible
+    currentRow.isVisible = true;
   }
 
   // Get TSV text representation
@@ -324,12 +421,12 @@ export class TSVDataModel {
 
   // FoldSelf(node): node.folded = true; for all children: Hide();
   private foldSelf(rowIndex: number): void {
-    this.recursiveFold(rowIndex, false);
+    this.nodeFold(rowIndex, false);
   }
 
   // UnfoldSelf: node.folded = false; if (node.visible) for all children: Show(child)
   private unfoldSelf(rowIndex: number): void {
-    this.recursiveUnfold(rowIndex, false);
+    this.nodeUnfold(rowIndex, false);
   }
 
   // Public interface methods
@@ -340,43 +437,43 @@ export class TSVDataModel {
       const metadata = this.rows[rowIndex];
   if (this.checkHasChildren(rowIndex)) {
         if (metadata.isFolded) {
-          this.recursiveUnfold(rowIndex, recurse);
+          this.nodeUnfold(rowIndex, recurse);
         } else {
-          this.recursiveFold(rowIndex, recurse);
+          this.nodeFold(rowIndex, recurse);
         }
       }
     }
   }
 
   // Public folding operations  
-  recursiveFold(rowIndex: number, recurse: boolean=true): void {
+  nodeFold(rowIndex: number, recurse: boolean=true): void {
     if (rowIndex >= 0 && rowIndex < this.rows.length) {
       const metadata = this.rows[rowIndex];
   if (this.checkHasChildren(rowIndex)) {
-        // RecursiveFold(node): node.folded = true; for all children: { RecursiveFold(); Hide(); }
+        // nodeFold(node): node.folded = true; for all children: { nodeFold(); Hide(); }
         metadata.isFolded = true;
         const children = this.getChildren(rowIndex);
         for (const childIndex of children) {
           if (recurse)
-            this.recursiveFold(childIndex, recurse);
+            this.nodeFold(childIndex, recurse);
           this.hide(childIndex);
         }
       }
     }
   }
 
-  recursiveUnfold(rowIndex: number, recurse:boolean=true): void {
+  nodeUnfold(rowIndex: number, recurse:boolean=true): void {
     if (rowIndex >= 0 && rowIndex < this.rows.length) {
       const metadata = this.rows[rowIndex];
   if (this.checkHasChildren(rowIndex)) {
-        // RecursiveUnfold(node): node.folded = false; if (visible) for all children: { Show(); RecursiveUnfold(); }
+        // nodeUnfold(node): node.folded = false; if (visible) for all children: { Show(); nodeUnfold(); }
         metadata.isFolded = false;
         if (metadata.isVisible) {
           const children = this.getChildren(rowIndex);
           for (const childIndex of children) {
             this.show(childIndex);
             if (recurse)
-              this.recursiveUnfold(childIndex, recurse);
+              this.nodeUnfold(childIndex, recurse);
           }
         }
       }

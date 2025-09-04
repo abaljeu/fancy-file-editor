@@ -96,9 +96,9 @@ class MyTextEditorProvider implements vscode.CustomTextEditorProvider {
         // Handle recursive fold/unfold
         const { rowIndex, folded } = e.data;
         if (folded) {
-          model.recursiveFold(rowIndex);
+          model.nodeFold(rowIndex);
         } else {
-          model.recursiveUnfold(rowIndex);
+          model.nodeUnfold(rowIndex);
         }
         
         // Refresh webview with new visible rows (no document update needed)

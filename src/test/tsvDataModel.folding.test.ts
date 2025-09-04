@@ -103,7 +103,7 @@ Section\tHeader\tInfo`;
       const model = new TSVDataModel(testData);
       
       // Recursive fold - should fold parent and hide all children
-      model.recursiveFold(0);
+      model.nodeFold(0);
       
       let visibleRows = model.getVisibleRows();
       assert.strictEqual(visibleRows.length, 1); // Only Parent visible
@@ -122,10 +122,10 @@ Section\tHeader\tInfo`;
       const model = new TSVDataModel(testData);
       
       // First fold all
-      model.recursiveFold(0);
+      model.nodeFold(0);
       
       // Then unfold all
-      model.recursiveUnfold(0);
+      model.nodeUnfold(0);
       
       let visibleRows = model.getVisibleRows();
       assert.strictEqual(visibleRows.length, 6); // All rows visible

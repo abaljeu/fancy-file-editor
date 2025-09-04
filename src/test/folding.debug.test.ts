@@ -38,12 +38,12 @@ describe('Folding Debug - New Implementation', () => {
         console.log(`Row ${i}: "${text}" - indent:${row.indentLevel}, folded:${row.isFolded}`);
       });
 
-      console.log('\n=== CALLING recursiveFold(0) ===');
+      console.log('\n=== CALLING nodeFold(0) ===');
       console.log('This should use RecursiveFold operation');
-      model.recursiveFold(0);
+      model.nodeFold(0);
       
       visible = model.getVisibleRows();
-      console.log('Visible rows after recursiveFold(0):', visible.length);
+      console.log('Visible rows after nodeFold(0):', visible.length);
       visible.forEach((row, i) => {
         const text = row.cells.filter(c => c).join(' ');
         console.log(`Row ${i}: "${text}" - indent:${row.indentLevel}, folded:${row.isFolded}`);
@@ -62,37 +62,37 @@ describe('Folding Debug - New Implementation', () => {
         console.log('Child2 folded:', visible[2]?.isFolded);
       }
 
-      // Test that recursiveFold works as expected
-      assert.strictEqual(visible.length, 1, 'Only Parent should be visible after recursiveFold');
+      // Test that nodeFold works as expected
+      assert.strictEqual(visible.length, 1, 'Only Parent should be visible after nodeFold');
       assert.strictEqual(visible[0].isFolded, true, 'Parent should be folded');
     });
 
-    it('should test recursiveUnfold operation', () => {
+    it('should test nodeUnfold operation', () => {
       const testData = 'Parent\n\tChild1\n\t\tGrandchild1\n\t\tGrandchild2\n\tChild2\n\t\tGrandchild3';
       const model = new TSVDataModel(testData);
 
       console.log('\n=== TESTING RECURSIVE UNFOLD ===');
       
       // First, fold everything recursively
-      model.recursiveFold(0);
-      console.log('After recursiveFold(0): Only Parent should be visible');
+      model.nodeFold(0);
+      console.log('After nodeFold(0): Only Parent should be visible');
       let visible = model.getVisibleRows();
       console.log('Visible rows:', visible.length);
       
       // Now unfold recursively
-      console.log('\n=== CALLING recursiveUnfold(0) ===');
+      console.log('\n=== CALLING nodeUnfold(0) ===');
       console.log('This should make all rows visible and unfold all nodes');
-      model.recursiveUnfold(0);
+      model.nodeUnfold(0);
       
       visible = model.getVisibleRows();
-      console.log('Visible rows after recursiveUnfold(0):', visible.length);
+      console.log('Visible rows after nodeUnfold(0):', visible.length);
       visible.forEach((row, i) => {
         const text = row.cells.filter(c => c).join(' ');
         console.log(`Row ${i}: "${text}" - indent:${row.indentLevel}, folded:${row.isFolded}`);
       });
 
       // Test that all rows are visible and unfoldable nodes are unfolded
-      assert.strictEqual(visible.length, 6, 'All 6 rows should be visible after recursiveUnfold');
+      assert.strictEqual(visible.length, 6, 'All 6 rows should be visible after nodeUnfold');
       assert.strictEqual(visible[0].isFolded, false, 'Parent should be unfolded');
       assert.strictEqual(visible[1].isFolded, false, 'Child1 should be unfolded');
       assert.strictEqual(visible[4].isFolded, false, 'Child2 should be unfolded');
