@@ -11,26 +11,21 @@ export interface CellEdit {
 
 export type TSVTable = string[][];
 
-// Folding-related types
-export interface RowMetadata {
+// Unified Row type (merges former RowMetadata + VisibleRowData concerns)
+export interface RowData {
+  originalRowIndex: number;   // Stable index within current ordering
   indentLevel: number;
   isFolded: boolean;
-  isVisible: boolean;  // New: explicit visibility state
-  hasChildren: boolean;
-}
-
-export interface VisibleRowData {
-  originalRowIndex: number;
-  indentLevel: number;
-  isFoldable: boolean;
-  isFolded: boolean;
-  cells: string[];
+  isVisible: boolean;         // Explicit visibility state
+  hasChildren: boolean;       // Structural child presence
+  isFoldable: boolean;        // Alias (kept for existing webview/tests)
+  cells: string[];            // Reference to underlying data row
 }
 
 // TSV Data Model Functions
 export class TSVDataModel {
   private data: TSVTable = [['']];
-  private rowMetadata: RowMetadata[] = [];
+  private rows: RowData[] = [];
 
   // Parse TSV text into 2D array
   static parseTSV(text: string): TSVTable {
@@ -60,17 +55,18 @@ export class TSVDataModel {
 
   // Initialize folding metadata for all rows
   private initializeFoldingMetadata(): void {
-    this.rowMetadata = [];
-    
+    this.rows = [];
     for (let i = 0; i < this.data.length; i++) {
       const indentLevel = this.calculateIndentLevel(i);
       const hasChildren = this.checkHasChildren(i);
-      
-      this.rowMetadata.push({
+      this.rows.push({
+        originalRowIndex: i,
         indentLevel,
-        isFolded: false,  // Default: not folded
-        isVisible: true,  // Default: visible
-        hasChildren
+        isFolded: false,
+        isVisible: true,
+        hasChildren,
+        isFoldable: hasChildren,
+        cells: this.data[i]
       });
     }
   }
@@ -83,8 +79,8 @@ export class TSVDataModel {
   private reinitializePreserveFolds(change?: { insertedAt?: number; deletedAt?: number }): void {
     // Capture indices of folded rows prior to mutation
     const foldedSet: number[] = [];
-    for (let i = 0; i < this.rowMetadata.length; i++) {
-      if (this.rowMetadata[i].isFolded) foldedSet.push(i);
+    for (let i = 0; i < this.rows.length; i++) {
+      if (this.rows[i].isFolded) foldedSet.push(i);
     }
 
     // Perform full metadata rebuild (resets visibility & hasChildren flags)
@@ -108,10 +104,9 @@ export class TSVDataModel {
 
     // Reapply fold state, ensuring descendants are hidden again
     for (const idx of foldedSet) {
-      if (idx >= 0 && idx < this.rowMetadata.length) {
-        // Reapply fold flag; if it no longer has children this is a no-op for visibility
-        this.rowMetadata[idx].isFolded = true;
-        if (this.rowMetadata[idx].hasChildren) {
+      if (idx >= 0 && idx < this.rows.length) {
+        this.rows[idx].isFolded = true;
+        if (this.rows[idx].hasChildren) {
           const children = this.getChildren(idx);
           for (const child of children) {
             this.hide(child);
@@ -235,14 +230,14 @@ export class TSVDataModel {
     if (rowIndex >= this.data.length) { rowIndex = this.data.length - 1; }
 
     // If row is not folded we can reuse existing logic which inserts immediately after
-    if (!this.rowMetadata[rowIndex] || !this.rowMetadata[rowIndex].isFolded) {
+  if (!this.rows[rowIndex] || !this.rows[rowIndex].isFolded) {
       return this.insertRowWithIndent(rowIndex); // already returns new row index (rowIndex+1)
     }
 
     // Row is folded: we must insert after its entire subtree but keep indentation of the folded row
-    const baseIndent = this.rowMetadata[rowIndex].indentLevel;
+  const baseIndent = this.rows[rowIndex].indentLevel;
     let insertionIndex = rowIndex + 1;
-    while (insertionIndex < this.rowMetadata.length && this.rowMetadata[insertionIndex].indentLevel > baseIndent) {
+  while (insertionIndex < this.rows.length && this.rows[insertionIndex].indentLevel > baseIndent) {
       insertionIndex++;
     }
 
@@ -298,12 +293,10 @@ export class TSVDataModel {
   // Helper: Get all children of a node
   private getChildren(rowIndex: number): number[] {
     const children: number[] = [];
-    if (rowIndex < 0 || rowIndex >= this.rowMetadata.length) return children;
-    
-    const parentLevel = this.rowMetadata[rowIndex].indentLevel;
-    
-    for (let i = rowIndex + 1; i < this.rowMetadata.length; i++) {
-      const currentLevel = this.rowMetadata[i].indentLevel;
+    if (rowIndex < 0 || rowIndex >= this.rows.length) return children;
+    const parentLevel = this.rows[rowIndex].indentLevel;
+    for (let i = rowIndex + 1; i < this.rows.length; i++) {
+      const currentLevel = this.rows[i].indentLevel;
       
       // Stop when we reach a row at the same or higher level (not a descendant)
       if (currentLevel <= parentLevel) break;
@@ -319,9 +312,8 @@ export class TSVDataModel {
 
   // Hide(node): node.visible = false; for all children of node: Hide(child)
   private hide(rowIndex: number): void {
-    if (rowIndex < 0 || rowIndex >= this.rowMetadata.length) return;
-    
-    this.rowMetadata[rowIndex].isVisible = false;
+  if (rowIndex < 0 || rowIndex >= this.rows.length) return;
+  this.rows[rowIndex].isVisible = false;
     
     const children = this.getChildren(rowIndex);
     for (const childIndex of children) {
@@ -331,11 +323,9 @@ export class TSVDataModel {
 
   // Show(node): node.visible = true; if (not folded) { for all children of node: Show(child); }
   private show(rowIndex: number): void {
-    if (rowIndex < 0 || rowIndex >= this.rowMetadata.length) return;
-    
-    this.rowMetadata[rowIndex].isVisible = true;
-    
-    if (!this.rowMetadata[rowIndex].isFolded) {
+  if (rowIndex < 0 || rowIndex >= this.rows.length) return;
+  this.rows[rowIndex].isVisible = true;
+  if (!this.rows[rowIndex].isFolded) {
       const children = this.getChildren(rowIndex);
       for (const childIndex of children) {
         this.show(childIndex);
@@ -345,9 +335,8 @@ export class TSVDataModel {
 
   // FoldSelf(node): node.folded = true; for all children: Hide();
   private foldSelf(rowIndex: number): void {
-    if (rowIndex < 0 || rowIndex >= this.rowMetadata.length) return;
-    
-    this.rowMetadata[rowIndex].isFolded = true;
+  if (rowIndex < 0 || rowIndex >= this.rows.length) return;
+  this.rows[rowIndex].isFolded = true;
     
     const children = this.getChildren(rowIndex);
     for (const childIndex of children) {
@@ -357,11 +346,9 @@ export class TSVDataModel {
 
   // UnfoldSelf: node.folded = false; if (node.visible) for all children: Show(child)
   private unfoldSelf(rowIndex: number): void {
-    if (rowIndex < 0 || rowIndex >= this.rowMetadata.length) return;
-    
-    this.rowMetadata[rowIndex].isFolded = false;
-    
-    if (this.rowMetadata[rowIndex].isVisible) {
+  if (rowIndex < 0 || rowIndex >= this.rows.length) return;
+  this.rows[rowIndex].isFolded = false;
+  if (this.rows[rowIndex].isVisible) {
       const children = this.getChildren(rowIndex);
       for (const childIndex of children) {
         this.show(childIndex);
@@ -373,8 +360,8 @@ export class TSVDataModel {
 
   // Toggle fold state of a specific row
   toggleFold(rowIndex: number): void {
-    if (rowIndex >= 0 && rowIndex < this.rowMetadata.length) {
-      const metadata = this.rowMetadata[rowIndex];
+    if (rowIndex >= 0 && rowIndex < this.rows.length) {
+      const metadata = this.rows[rowIndex];
       if (metadata.hasChildren) {
         if (metadata.isFolded) {
           this.unfoldSelf(rowIndex);
@@ -387,8 +374,8 @@ export class TSVDataModel {
 
   // Public folding operations  
   recursiveFold(rowIndex: number): void {
-    if (rowIndex >= 0 && rowIndex < this.rowMetadata.length) {
-      const metadata = this.rowMetadata[rowIndex];
+    if (rowIndex >= 0 && rowIndex < this.rows.length) {
+      const metadata = this.rows[rowIndex];
       if (metadata.hasChildren) {
         // RecursiveFold(node): node.folded = true; for all children: { RecursiveFold(); Hide(); }
         metadata.isFolded = true;
@@ -402,8 +389,8 @@ export class TSVDataModel {
   }
 
   recursiveUnfold(rowIndex: number): void {
-    if (rowIndex >= 0 && rowIndex < this.rowMetadata.length) {
-      const metadata = this.rowMetadata[rowIndex];
+    if (rowIndex >= 0 && rowIndex < this.rows.length) {
+      const metadata = this.rows[rowIndex];
       if (metadata.hasChildren) {
         // RecursiveUnfold(node): node.folded = false; if (visible) for all children: { Show(); RecursiveUnfold(); }
         metadata.isFolded = false;
@@ -419,29 +406,31 @@ export class TSVDataModel {
   }
 
   // Get visible rows (considering fold states)
-  getVisibleRows(): VisibleRowData[] {
-    const visibleRows: VisibleRowData[] = [];
-    
-    for (let i = 0; i < this.data.length; i++) {
-      if (this.rowMetadata[i].isVisible) {
-        const metadata = this.rowMetadata[i];
-        visibleRows.push({
+  getVisibleRows(): RowData[] {
+    const out: RowData[] = [];
+    for (let i = 0; i < this.rows.length; i++) {
+      const r = this.rows[i];
+      if (r.isVisible) {
+        // Return shallow copy to avoid accidental external mutation
+        out.push({
           originalRowIndex: i,
-          indentLevel: metadata.indentLevel,
-          isFoldable: metadata.hasChildren,
-          isFolded: metadata.isFolded,
-          cells: [...this.data[i]]  // Copy the cell data
+          indentLevel: r.indentLevel,
+            isFolded: r.isFolded,
+            isVisible: r.isVisible,
+            hasChildren: r.hasChildren,
+            isFoldable: r.hasChildren,
+            cells: [...r.cells]
         });
       }
     }
-    
-    return visibleRows;
+    return out;
   }
 
   // Get metadata for a specific row
-  getRowMetadata(rowIndex: number): RowMetadata | null {
-    if (rowIndex >= 0 && rowIndex < this.rowMetadata.length) {
-      return { ...this.rowMetadata[rowIndex] };  // Return copy
+  getRowMetadata(rowIndex: number): RowData | null {
+    if (rowIndex >= 0 && rowIndex < this.rows.length) {
+      const r = this.rows[rowIndex];
+      return { ...r, cells: [...r.cells], originalRowIndex: rowIndex };
     }
     return null;
   }
