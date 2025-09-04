@@ -112,8 +112,8 @@ describe('TSVDataModel', () => {
       model = new TSVDataModel(tsvText);
     });
 
-    it('should insert row after specified index', () => {
-      model.insertRowAfter(1);
+    it('should insert row after specified index (using visible insertion)', () => {
+      model.insertRowAfterVisible(1);
       const data = model.getData();
       
       assert.strictEqual(data.length, 4);
@@ -147,10 +147,10 @@ describe('TSVDataModel', () => {
       assert.strictEqual(data.length, 1); // Row should still exist
     });
 
-    it('should insert row with Excel-like indentation', () => {
+    it('should insert row with Excel-like indentation (afterVisible)', () => {
       // Create model with indented structure
       const indentedModel = new TSVDataModel('Header\tData\n\tJohn\t25\n\tJane\t30');
-      const result = indentedModel.insertRowWithIndent(1);
+      const result = indentedModel.insertRowAfterVisible(1); // acts like withIndent when not folded
       const data = indentedModel.getData();
       
       assert.strictEqual(result.newRowIndex, 2);
@@ -159,8 +159,8 @@ describe('TSVDataModel', () => {
       assert.deepStrictEqual(data[2], ['', '']); // New row with leading tab
     });
 
-    it('should handle Excel-like indentation with no indentation in reference row', () => {
-      const result = model.insertRowWithIndent(0);
+    it('should handle Excel-like indentation with no indentation in reference row (afterVisible)', () => {
+      const result = model.insertRowAfterVisible(0);
       const data = model.getData();
       
       assert.strictEqual(result.focusCol, 0); // No indentation needed
@@ -250,7 +250,7 @@ describe('TSVDataModel', () => {
       
       // Perform a series of operations
       model.updateCell({ position: { row: 0, col: 0 }, value: 'Modified' });
-      model.insertRowAfter(1);
+  model.insertRowAfterVisible(1);
       model.addColumnToRow(2);
       model.deleteRow(3);
       

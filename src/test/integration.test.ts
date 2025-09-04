@@ -13,8 +13,8 @@ describe('TSVDataModel Integration Tests', () => {
       model.updateCell({ position: { row: 0, col: 1 }, value: 'Age' });
       model.updateCell({ position: { row: 0, col: 2 }, value: 'City' });
       
-      // User presses Enter to create new row
-      model.insertRowAfter(0);
+  // User presses Enter to create new row
+  model.insertRowAfterVisible(0);
       
       // User types first data row  
       model.updateCell({ position: { row: 1, col: 0 }, value: 'John' });
@@ -44,7 +44,7 @@ describe('TSVDataModel Integration Tests', () => {
       assert.deepStrictEqual(data[2], ['', 'Data2', 'Value2']);
       
       // User presses Enter on last row (simulating Excel-like behavior)
-      const result = model.insertRowWithIndent(2);
+  const result = model.insertRowAfterVisible(2);
       
       // Should create new row with proper indentation
       assert.strictEqual(result.newRowIndex, 3);
@@ -120,7 +120,7 @@ describe('TSVDataModel Integration Tests', () => {
       model.updateCell({ position: { row: 2, col: 2 }, value: 'London' });
       
       // 3. Insert new row in middle
-      model.insertRowAfter(1);
+  model.insertRowAfterVisible(1);
       model.updateCell({ position: { row: 2, col: 0 }, value: 'Bob' });
       model.updateCell({ position: { row: 2, col: 1 }, value: '35' });
       model.updateCell({ position: { row: 2, col: 2 }, value: 'Paris' });
@@ -154,7 +154,7 @@ describe('TSVDataModel Integration Tests', () => {
       
       // Parse → Modify → Serialize → Parse again
       const model1 = new TSVDataModel(originalTSV);
-      model1.insertRowAfter(2);
+  model1.insertRowAfterVisible(2);
       model1.updateCell({ position: { row: 3, col: 0 }, value: 'New' });
       
       const modifiedTSV = model1.toTSV();
@@ -172,7 +172,7 @@ describe('TSVDataModel Integration Tests', () => {
       model.updateCell({ position: { row: 5, col: 5 }, value: 'Far' }); // Expand dramatically
       model.deleteRow(3); // Delete middle row
       model.removeLastColumnFromRow(0); // Try to remove from short row
-      model.insertRowAfter(0); // Insert row
+  model.insertRowAfterVisible(0); // Insert row
       model.addColumnToRow(1); // Add column to new row
       
       // Should still have valid structure

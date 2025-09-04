@@ -185,92 +185,74 @@ export class TSVDataModel {
     return { rows, cols };
   }
 
-  // Insert a new row at the specified index
-  insertRow(rowIndex: number): void {
-    // Just insert a single empty cell (no tabs initially)
-    const newRow = [''];
-    this.data.splice(rowIndex, 0, newRow);
-  this.reinitializePreserveFolds({ insertedAt: rowIndex });
-  }
-
-  // Insert a new row with leading tabs to match the first data column of the row above
-  insertRowWithIndent(rowIndex: number): { newRowIndex: number; focusCol: number } {
-    const newRowIndex = rowIndex + 1;
-    
-    // Find the first non-empty cell in the row above (or current row if at end)
-    const referenceRowIndex = rowIndex >= 0 && rowIndex < this.data.length ? rowIndex : this.data.length - 1;
+  // Shared helper: compute first data column (indent width)
+  private getFirstDataColumn(referenceRowIndex: number): number {
     let firstDataCol = 0;
-    
     if (referenceRowIndex >= 0 && referenceRowIndex < this.data.length) {
       const referenceRow = this.data[referenceRowIndex];
       for (let i = 0; i < referenceRow.length; i++) {
-        if (referenceRow[i].trim() !== '') {
-          firstDataCol = i;
-          break;
-        }
+        if (referenceRow[i].trim() !== '') { firstDataCol = i; break; }
       }
     }
-    
-    // Create new row with empty cells up to the first data column
-    const newRow = new Array(firstDataCol + 1).fill('');
-    this.data.splice(newRowIndex, 0, newRow);
-  this.reinitializePreserveFolds({ insertedAt: newRowIndex });
-    
-    return { newRowIndex, focusCol: firstDataCol };
+    return firstDataCol;
   }
 
+
+  
   /**
+   * Unified insertion helper. Decides final insertion index and indentation.
+   * @param baseIndex Reference row index (clamped inside)
+   * @param options.position Where to insert relative to base
+   * @param options.afterVisible Treat 'after' as after folded subtree if folded
+   * @param options.matchIndent Derive indent from reference row's first data column
+   */
+  private insertUnified(baseIndex: number, options: { position: 'before' | 'after'; afterVisible?: boolean; matchIndent?: boolean }): { newRowIndex: number; focusCol: number } {
+    if (this.data.length === 0) {
+      return this.insertAt(0, 0);
+    }
+    let idx = Math.max(0, Math.min(baseIndex, this.data.length - 1));
+    let insertionIndex: number;
+    if (options.position === 'before') {
+      insertionIndex = idx;
+    } else { // after
+      if (options.afterVisible && this.rows[idx] && this.rows[idx].isFolded) {
+        // Skip entire folded subtree
+        const baseIndent = this.rows[idx].indentLevel;
+        insertionIndex = idx + 1;
+        while (insertionIndex < this.rows.length && this.rows[insertionIndex].indentLevel > baseIndent) {
+          insertionIndex++;
+        }
+      } else {
+        insertionIndex = idx + 1;
+      }
+    }
+    const focusIndentCol = options.matchIndent ? this.getFirstDataColumn(idx) : 0;
+    return this.insertAt(insertionIndex, focusIndentCol);
+  }
+
+  // Shared helper: perform the actual splice + metadata preservation
+  private insertAt(insertionIndex: number, firstDataCol: number): { newRowIndex: number; focusCol: number } {
+    const newRow = new Array(firstDataCol + 1).fill('');
+    this.data.splice(insertionIndex, 0, newRow);
+    this.reinitializePreserveFolds({ insertedAt: insertionIndex });
+    return { newRowIndex: insertionIndex, focusCol: firstDataCol };
+  }
+
+ /**
    * Insert a new sibling row logically "after" the current visible row.
    * If the current row is folded, the new row is placed after its entire hidden subtree.
    * Returns the inserted row index and the column to focus.
    */
   insertRowAfterVisible(rowIndex: number): { newRowIndex: number; focusCol: number } {
-    // Defensive clamp
-    if (rowIndex < 0) { rowIndex = 0; }
-    if (rowIndex >= this.data.length) { rowIndex = this.data.length - 1; }
-
-    // If row is not folded we can reuse existing logic which inserts immediately after
-  if (!this.rows[rowIndex] || !this.rows[rowIndex].isFolded) {
-      return this.insertRowWithIndent(rowIndex); // already returns new row index (rowIndex+1)
-    }
-
-    // Row is folded: we must insert after its entire subtree but keep indentation of the folded row
-  const baseIndent = this.rows[rowIndex].indentLevel;
-    let insertionIndex = rowIndex + 1;
-  while (insertionIndex < this.rows.length && this.rows[insertionIndex].indentLevel > baseIndent) {
-      insertionIndex++;
-    }
-
-    // Compute first data column from the folded (reference) row
-    const referenceRow = this.data[rowIndex] || [''];
-    let firstDataCol = 0;
-    for (let i = 0; i < referenceRow.length; i++) {
-      if (referenceRow[i].trim() !== '') { firstDataCol = i; break; }
-    }
-
-    const newRow = new Array(firstDataCol + 1).fill('');
-    this.data.splice(insertionIndex, 0, newRow);
-  this.reinitializePreserveFolds({ insertedAt: insertionIndex });
-    return { newRowIndex: insertionIndex, focusCol: firstDataCol };
+  return this.insertUnified(rowIndex, { position: 'after', afterVisible: true, matchIndent: true });
   }
 
-  // Delete row at the specified index
-  deleteRow(rowIndex: number): void {
-    if (this.data.length > 1 && rowIndex >= 0 && rowIndex < this.data.length) {
-      this.data.splice(rowIndex, 1);
-  this.reinitializePreserveFolds({ deletedAt: rowIndex });
-    }
-  }
-
-  // Insert a new row after the specified row index
-  insertRowAfter(rowIndex: number): void {
-    this.insertRow(rowIndex + 1);
-  }
-
+  
   // Insert a new row before the specified row index
   insertRowBefore(rowIndex: number): void {
-    this.insertRow(rowIndex);
+  this.insertUnified(rowIndex, { position: 'before', matchIndent: false });
   }
+
 
   // Add a column to a specific row
   addColumnToRow(rowIndex: number): void {
@@ -286,6 +268,15 @@ export class TSVDataModel {
       return true;
     }
     return false;
+  }
+
+  
+  // Delete row at the specified index
+  deleteRow(rowIndex: number): void {
+    if (this.data.length > 1 && rowIndex >= 0 && rowIndex < this.data.length) {
+      this.data.splice(rowIndex, 1);
+  this.reinitializePreserveFolds({ deletedAt: rowIndex });
+    }
   }
 
   // Folding Operations

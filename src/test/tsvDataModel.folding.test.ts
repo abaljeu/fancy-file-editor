@@ -136,8 +136,8 @@ describe('TSVDataModel - Folding Features', () => {
       // Fold Child1
       model.toggleFold(1);
       
-      // Insert a new row
-      model.insertRow(2);
+  // Insert a new row (use public insertRowBefore/After API)
+  model.insertRowBefore(2);
       
       // Check that Child1 is still folded after insertion
       let visibleRows = model.getVisibleRows();

@@ -160,8 +160,8 @@ describe('Folding Debug - New Implementation', () => {
         console.log(`${i}: "${text}" - indent:${row.indentLevel}, foldable:${row.isFoldable}, folded:${row.isFolded}`);
       });
 
-      console.log('\nInserting row at index 2...');
-      model.insertRow(2);
+  console.log('\nInserting row at index 2...');
+  model.insertRowBefore(2);
       
       visible = model.getVisibleRows();
       console.log(`After inserting row: ${visible.length} visible`);
