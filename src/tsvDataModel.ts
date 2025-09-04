@@ -17,9 +17,6 @@ export interface RowData {
   indentLevel: number;
   isFolded: boolean;
   isVisible: boolean;         // Explicit visibility state
-  // Optional computed flags for external callers/tests. Not stored internally.
-  hasChildren?: boolean;
-  isFoldable?: boolean;
   cells: string[];            // Reference to underlying data row
 }
 
@@ -272,7 +269,7 @@ export class TSVDataModel {
 
   
   // Check if a row has children (next row has higher indent level)
-  private checkHasChildren(rowIndex: number): boolean {
+  public checkHasChildren(rowIndex: number): boolean {
     if (rowIndex >= this.data.length - 1) return false;
     
     const currentLevel = this.calculateIndentLevel(rowIndex);
@@ -283,7 +280,7 @@ export class TSVDataModel {
 
 
   // Helper: Get all children of a node
-  private getChildren(rowIndex: number): number[] {
+  public getChildren(rowIndex: number): number[] {
     const children: number[] = [];
     if (rowIndex < 0 || rowIndex >= this.rows.length) return children;
     const parentLevel = this.rows[rowIndex].indentLevel;
@@ -343,7 +340,7 @@ export class TSVDataModel {
       const metadata = this.rows[rowIndex];
   if (this.checkHasChildren(rowIndex)) {
         if (metadata.isFolded) {
-          this.recursiveFold(rowIndex, recurse);
+          this.recursiveUnfold(rowIndex, recurse);
         } else {
           this.recursiveFold(rowIndex, recurse);
         }

@@ -13,7 +13,7 @@ describe('Folding Debug - New Implementation', () => {
       console.log('Visible rows:', visible.length);
       visible.forEach((row, i) => {
         const text = row.cells.filter(c => c).join(' ');
-        console.log(`Row ${i}: "${text}" - indent:${row.indentLevel}, foldable:${row.isFoldable}, folded:${row.isFolded}`);
+        console.log(`Row ${i}: "${text}" - indent:${row.indentLevel}, folded:${row.isFolded}`);
       });
 
       console.log('\n=== CALLING toggleFold(0) ===');
@@ -24,7 +24,7 @@ describe('Folding Debug - New Implementation', () => {
       console.log('Visible rows after toggleFold(0):', visible.length);
       visible.forEach((row, i) => {
         const text = row.cells.filter(c => c).join(' ');
-        console.log(`Row ${i}: "${text}" - indent:${row.indentLevel}, foldable:${row.isFoldable}, folded:${row.isFolded}`);
+        console.log(`Row ${i}: "${text}" - indent:${row.indentLevel}, folded:${row.isFolded}`);
       });
 
       console.log('\n=== CALLING toggleFold(0) again ===');
@@ -35,7 +35,7 @@ describe('Folding Debug - New Implementation', () => {
       console.log('Visible rows after second toggleFold(0):', visible.length);
       visible.forEach((row, i) => {
         const text = row.cells.filter(c => c).join(' ');
-        console.log(`Row ${i}: "${text}" - indent:${row.indentLevel}, foldable:${row.isFoldable}, folded:${row.isFolded}`);
+        console.log(`Row ${i}: "${text}" - indent:${row.indentLevel}, folded:${row.isFolded}`);
       });
 
       console.log('\n=== CALLING recursiveFold(0) ===');
@@ -46,7 +46,7 @@ describe('Folding Debug - New Implementation', () => {
       console.log('Visible rows after recursiveFold(0):', visible.length);
       visible.forEach((row, i) => {
         const text = row.cells.filter(c => c).join(' ');
-        console.log(`Row ${i}: "${text}" - indent:${row.indentLevel}, foldable:${row.isFoldable}, folded:${row.isFolded}`);
+        console.log(`Row ${i}: "${text}" - indent:${row.indentLevel}, folded:${row.isFolded}`);
       });
 
       console.log('\n=== EXPECTED FOR FAILING TEST ===');
@@ -88,7 +88,7 @@ describe('Folding Debug - New Implementation', () => {
       console.log('Visible rows after recursiveUnfold(0):', visible.length);
       visible.forEach((row, i) => {
         const text = row.cells.filter(c => c).join(' ');
-        console.log(`Row ${i}: "${text}" - indent:${row.indentLevel}, foldable:${row.isFoldable}, folded:${row.isFolded}`);
+        console.log(`Row ${i}: "${text}" - indent:${row.indentLevel}, folded:${row.isFolded}`);
       });
 
       // Test that all rows are visible and unfoldable nodes are unfolded
@@ -107,7 +107,7 @@ describe('Folding Debug - New Implementation', () => {
       let visible = model.getVisibleRows();
       visible.forEach((row, i) => {
         const text = row.cells[0].trim();
-        console.log(`${i}: "${text}" - indent:${row.indentLevel}, foldable:${row.isFoldable}, folded:${row.isFolded}`);
+        console.log(`${i}: "${text}" - indent:${row.indentLevel}, folded:${row.isFolded}`);
       });
 
       console.log('\nFolding Section1 (index 1)...');
@@ -117,7 +117,7 @@ describe('Folding Debug - New Implementation', () => {
       console.log(`After folding Section1: ${visible.length} visible`);
       visible.forEach((row, i) => {
         const text = row.cells[0].trim();
-        console.log(`${i}: "${text}" - indent:${row.indentLevel}, foldable:${row.isFoldable}, folded:${row.isFolded}`);
+        console.log(`${i}: "${text}" - indent:${row.indentLevel}, folded:${row.isFolded}`);
       });
 
       console.log('\nTest expects:');
@@ -147,7 +147,7 @@ describe('Folding Debug - New Implementation', () => {
       let visible = model.getVisibleRows();
       visible.forEach((row, i) => {
         const text = row.cells[0].trim();
-        console.log(`${i}: "${text}" - indent:${row.indentLevel}, foldable:${row.isFoldable}, folded:${row.isFolded}`);
+        console.log(`${i}: "${text}" - indent:${row.indentLevel}, folded:${row.isFolded}`);
       });
 
       console.log('\nFolding Child1 (index 1)...');
@@ -157,7 +157,7 @@ describe('Folding Debug - New Implementation', () => {
       console.log(`After folding Child1: ${visible.length} visible`);
       visible.forEach((row, i) => {
         const text = row.cells[0].trim();
-        console.log(`${i}: "${text}" - indent:${row.indentLevel}, foldable:${row.isFoldable}, folded:${row.isFolded}`);
+        console.log(`${i}: "${text}" - indent:${row.indentLevel}, folded:${row.isFolded}`);
       });
 
   console.log('\nInserting row at index 2...');
@@ -167,7 +167,7 @@ describe('Folding Debug - New Implementation', () => {
       console.log(`After inserting row: ${visible.length} visible`);
       visible.forEach((row, i) => {
         const text = row.cells[0].trim();
-        console.log(`${i}: "${text}" - indent:${row.indentLevel}, foldable:${row.isFoldable}, folded:${row.isFolded}`);
+        console.log(`${i}: "${text}" - indent:${row.indentLevel}, folded:${row.isFolded}`);
       });
 
       console.log('\nLooking for Child1...');
