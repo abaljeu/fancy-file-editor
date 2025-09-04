@@ -49,33 +49,165 @@ Current message types handled (legacy mismatch resolved):
 Full-document replace logic uses a large `Range(0,0,lineCount,0)`. Works but less explicit than using document end position by offset.
 
 ---
-## 4. Webview UI Issues
+## 4. Webview UI Issues & Performance Strategy
 
-1. Navigation (Up/Down): arrow keys should move to the previous/next VISIBLE row (skip folded/hidden rows). Current implementation uses original row indices which may target hidden rows.
-2. Tab navigation: should use `data-original-row` (not yet updated – pending).
-3. Context menu 'Unfold': will be changed to explicit recursive unfold (not toggle).
+**New Incremental Update Architecture (UID-based)**:
+
+### Core Principle
+- **Model**: Sequence of ALL rows, some marked `isVisible: true/false`
+- **View**: Displays sequence of VISIBLE rows only, same order as model
+- **Identity**: Each row has stable UID for tracking across operations
+- **Batching**: Operations that affect multiple rows send batch updates
+
+### UID Strategy
+```typescript
+// In RowData interface - add:
+interface RowData {
+  uid: string;                    // Stable identifier (uuid or hash-based)
+  originalRowIndex: number;       // Current position in model
+  indentLevel: number;
+  isFolded: boolean;
+  isVisible: boolean;
+  cells: string[];
+}
+```
+
+### Batch Update Messages
+```typescript
+// Remove multiple rows (fold, delete operations)
+{
+  type: 'removeRows',
+  data: { uids: string[] }
+}
+
+// Insert rows after anchor (unfold, insert operations)  
+{
+  type: 'insertRowsAfter',
+  data: { 
+    anchorUID: string,           // Existing visible row (or null for prepend)
+    newRows: RowData[]           // Rows to insert in sequence
+  }
+}
+
+// Update existing row content (cell edits)
+{
+  type: 'updateRows', 
+  data: { rows: {uid: string, cells: string[]}[] }
+}
+```
+
+### View-Side Implementation
+```javascript
+// In webview.js
+const rowElementsByUID = new Map();  // uid -> HTMLTableRowElement
+const cellElementsByUID = new Map(); // uid -> Map<colIndex, HTMLInputElement>
+
+function handleRemoveRows(uids) {
+  uids.forEach(uid => {
+    const rowElement = rowElementsByUID.get(uid);
+    if (rowElement) {
+      rowElement.remove();
+      rowElementsByUID.delete(uid);
+      cellElementsByUID.delete(uid);
+    }
+  });
+}
+
+function handleInsertRowsAfter(anchorUID, newRows) {
+  const anchorElement = rowElementsByUID.get(anchorUID);
+  const insertPoint = anchorElement ? anchorElement.nextSibling : tableBody.firstChild;
+  
+  newRows.forEach(rowData => {
+    const rowElement = createRowElement(rowData);
+    tableBody.insertBefore(rowElement, insertPoint);
+    rowElementsByUID.set(rowData.uid, rowElement);
+    // ... populate cellElementsByUID
+  });
+}
+```
+
+### Benefits
+- **Fold operation**: One `removeRows` message with all descendant UIDs
+- **Unfold operation**: One `insertRowsAfter` message with all newly visible rows
+- **Insert/Delete**: Precise positioning without index recalculation
+- **Performance**: Only touches affected DOM elements
 
 ---
-## 5. Folding Logic Problems (Detail)
+## 5. Implementation Steps for UID Architecture
 
-| Problem | Effect |
-|---------|--------|
-| `updateFoldingMetadata()` re-applies `isFolded` flags but doesn't re-hide descendants | Collapsed nodes visually expand after structural changes |
-| Index-based fold restoration | Wrong rows can be marked folded after insert/delete |
-| Mixed semantics (toggle vs recursive) | User confusion / inconsistent test expectations |
+### Step 1: Add UID to Model
+```typescript
+// In tsvDataModel.ts
+private generateUID(): string {
+  return `row_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
 
-Example failure mode: After editing rows that shift indices, a previously folded row might stay folded but hide the wrong set of descendants or none at all.
+// Update initializeFoldingMetadata() to assign UIDs
+// Update insertAt() to assign UID to new rows
+```
+
+### Step 2: View UID Tracking
+```javascript
+// In webview.js - replace current row tracking
+const rowElementsByUID = new Map();
+const visibleRowOrder = []; // Array of UIDs in display order
+```
+
+### Step 3: Batch Change Detection
+```typescript
+// In tsvDataModel.ts - add change tracking
+private pendingChanges: {
+  removedUIDs: Set<string>;
+  insertedAfter: Map<string|null, RowData[]>;
+  updatedRows: Map<string, RowData>;
+} = { removedUIDs: new Set(), insertedAfter: new Map(), updatedRows: new Map() };
+
+// Collect changes during operations, flush at end
+```
+
+### Step 4: Extension Bridge Updates
+```typescript
+// In extension.ts - replace single refresh with batched updates
+private flushModelChanges(model: TSVDataModel) {
+  const changes = model.getAndClearPendingChanges();
+  webviewPanel.webview.postMessage({
+    type: 'batchUpdate',
+    data: changes
+  });
+}
+```
 
 ---
-## 6. Minimal Remediation Plan (Phase 1)
 
-Goal: Make existing features consistent & predictable without large refactors.
+## 6. Folding Logic Problems (Detail) - SUPERSEDED BY UID ARCHITECTURE
 
-1. Arrow Up/Down: implement DOM-based navigation over visible `tr[data-original-row]` elements.
-2. Row insertion: change semantic to insertAfter(visibleRowIndex) (skip hidden descendants) – pending.
-3. Fix Tab navigation to use `data-original-row` (pending).
-4. Context menu 'Unfold': send explicit recursive unfold (pending).
-5. (Optional) Stable row identity for fold persistence (Phase 2).
+**OLD ISSUES** (solved by UID approach):
+
+| Problem | Effect | UID Solution |
+|---------|--------|--------------|
+| `updateFoldingMetadata()` re-applies `isFolded` flags but doesn't re-hide descendants | Collapsed nodes visually expand after structural changes | UIDs maintain identity across structural changes |
+| Index-based fold restoration | Wrong rows can be marked folded after insert/delete | UIDs provide stable identity |
+| Mixed semantics (toggle vs recursive) | User confusion / inconsistent test expectations | Clear batch operations with explicit scope |
+
+**NEW APPROACH**: 
+- Fold operations change `isVisible` flags in model
+- Model batches all affected UIDs 
+- Single `removeRows` message to view
+- No index recalculation needed
+
+---
+
+## 7. Minimal Remediation Plan (Phase 1) - UPDATED
+
+Goal: Implement UID-based architecture for stable performance.
+
+**Priority Order:**
+1. **Add UID to RowData interface and model operations**
+2. **Implement view-side UID tracking and batch update handlers** 
+3. **Update extension bridge to send batch messages**
+4. **Replace current full-refresh with incremental updates**
+5. Fix Tab navigation to use UIDs (was: `data-original-row`)
+6. Context menu operations use batch updates
 
 ---
 ## 7. Proposed Code Changes (Draft – Not Applied Yet)
@@ -154,14 +286,20 @@ Phase 4 (Extensibility): Plug-in style render adapters for other file types (con
 4. Decide on semantics for "Fold All Descendants" (see Open Decision #1) – REQUIRED before finalizing tests.
 
 ---
-## 13. Questions for Confirmation
+
+## 13. Questions for Confirmation - UPDATED FOR UID ARCHITECTURE
 
 Please clarify:
-* Q1: Confirm "Fold All Descendants" = hide every descendant (YES/NO)?
-* Q2: Proceed with index-based restoration for Phase 1 (YES/NO)?
-* Q3: Adopt new message names now or defer to Phase 2?
 
-Add answers below, then we execute Phase 1.
+* **Q1**: Proceed with UID-based batch update architecture as outlined above (YES/NO)?
+* **Q2**: UID generation strategy - use `Date.now() + random()` or content-based hash (simpler vs stable across reloads)?
+* **Q3**: Implement all 4 steps of UID architecture in one phase, or break into sub-phases?
+
+**NEW DECISIONS NEEDED**:
+* **Q4**: Should fold operations send incremental updates immediately, or batch them until operation completes?
+* **Q5**: How to handle initial table population - still send full `init` message or use `insertRowsAfter` with `anchorUID: null`?
+
+Add answers below, then we execute UID implementation.
 
 ---
 ## 14. Scratch / Notes

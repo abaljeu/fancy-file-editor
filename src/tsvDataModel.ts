@@ -13,17 +13,23 @@ export type TSVTable = string[][];
 
 // Unified Row type (merges former RowMetadata + VisibleRowData concerns)
 export interface RowData {
-  originalRowIndex: number;   // Stable index within current ordering
+  uid: string;                    // Stable identifier for tracking across operations
+  originalRowIndex: number;       // Stable index within current ordering
   indentLevel: number;
   isFolded: boolean;
-  isVisible: boolean;         // Explicit visibility state
-  cells: string[];            // Reference to underlying data row
+  isVisible: boolean;             // Explicit visibility state
+  cells: string[];                // Reference to underlying data row
 }
 
 // TSV Data Model Functions
 export class TSVDataModel {
   private data: TSVTable = [['']];
   private rows: RowData[] = [];
+
+  // Generate unique identifier for rows
+  private generateUID(): string {
+    return `row_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
 
   // Parse TSV text into 2D array
   static parseTSV(text: string): TSVTable {
@@ -58,6 +64,7 @@ export class TSVDataModel {
       const indentLevel = this.calculateIndentLevel(i);
       const hasChildren = this.checkHasChildren(i);
       this.rows.push({
+        uid: this.generateUID(),
         originalRowIndex: i,
         indentLevel,
         isFolded: false,
@@ -111,6 +118,7 @@ export class TSVDataModel {
       // Create corresponding RowData for new rows
       const newRowIndex = this.data.length - 1;
       const newRowData: RowData = {
+        uid: this.generateUID(),
         originalRowIndex: newRowIndex,
         indentLevel: 0, // Will be recalculated below
         isFolded: false,
@@ -288,6 +296,7 @@ export class TSVDataModel {
     }
 
     const rowData: RowData = {
+      uid: this.generateUID(),
       originalRowIndex: insertionIndex,
       indentLevel,
       isFolded: false,
@@ -499,6 +508,18 @@ export class TSVDataModel {
       return this.rows[rowIndex];
    }
     return null;
+  }
+
+  // Get metadata for a specific row by UID
+  getRowMetadataByUID(uid: string): RowData | null {
+    return this.rows.find(row => row.uid === uid) || null;
+  }
+
+  // Get all UIDs for visible rows in order
+  getVisibleRowUIDs(): string[] {
+    return this.rows
+      .filter(row => row.isVisible)
+      .map(row => row.uid);
   }
 
 }
