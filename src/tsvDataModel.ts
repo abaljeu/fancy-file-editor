@@ -17,8 +17,9 @@ export interface RowData {
   indentLevel: number;
   isFolded: boolean;
   isVisible: boolean;         // Explicit visibility state
-  hasChildren: boolean;       // Structural child presence
-  isFoldable: boolean;        // Alias (kept for existing webview/tests)
+  // Optional computed flags for external callers/tests. Not stored internally.
+  hasChildren?: boolean;
+  isFoldable?: boolean;
   cells: string[];            // Reference to underlying data row
 }
 
@@ -64,55 +65,8 @@ export class TSVDataModel {
         indentLevel,
         isFolded: false,
         isVisible: true,
-        hasChildren,
-        isFoldable: hasChildren,
         cells: this.data[i]
       });
-    }
-  }
-
-  /**
-   * Rebuild rowMetadata while preserving existing fold states.
-   * Adjust indices for insertion/deletion and reapply folds so descendants
-   * remain hidden. New rows start unfolded & visible.
-   */
-  private reinitializePreserveFolds(change?: { insertedAt?: number; deletedAt?: number }): void {
-    // Capture indices of folded rows prior to mutation
-    const foldedSet: number[] = [];
-    for (let i = 0; i < this.rows.length; i++) {
-      if (this.rows[i].isFolded) foldedSet.push(i);
-    }
-
-    // Perform full metadata rebuild (resets visibility & hasChildren flags)
-    this.initializeFoldingMetadata();
-
-    // Adjust indices relative to structural change
-    if (change?.insertedAt !== undefined) {
-      for (let i = 0; i < foldedSet.length; i++) {
-        if (foldedSet[i] >= change.insertedAt) foldedSet[i] += 1;
-      }
-    }
-    if (change?.deletedAt !== undefined) {
-      for (let i = 0; i < foldedSet.length; i++) {
-        if (foldedSet[i] > change.deletedAt) foldedSet[i] -= 1;
-        else if (foldedSet[i] === change.deletedAt) {
-          // Deleted the folded row itself; remove from list
-          foldedSet.splice(i, 1); i--; 
-        }
-      }
-    }
-
-    // Reapply fold state, ensuring descendants are hidden again
-    for (const idx of foldedSet) {
-      if (idx >= 0 && idx < this.rows.length) {
-        this.rows[idx].isFolded = true;
-        if (this.rows[idx].hasChildren) {
-          const children = this.getChildren(idx);
-          for (const child of children) {
-            this.hide(child);
-          }
-        }
-      }
     }
   }
 
@@ -142,17 +96,6 @@ export class TSVDataModel {
     
     return indentLevel;
   }
-
-  // Check if a row has children (next row has higher indent level)
-  private checkHasChildren(rowIndex: number): boolean {
-    if (rowIndex >= this.data.length - 1) return false;
-    
-    const currentLevel = this.calculateIndentLevel(rowIndex);
-    const nextLevel = this.calculateIndentLevel(rowIndex + 1);
-    
-    return nextLevel > currentLevel;
-  }
-
   // Get current data
   getData(): TSVTable {
     return [...this.data.map(row => [...row])]; // Deep copy
@@ -233,8 +176,47 @@ export class TSVDataModel {
   // Shared helper: perform the actual splice + metadata preservation
   private insertAt(insertionIndex: number, firstDataCol: number): { newRowIndex: number; focusCol: number } {
     const newRow = new Array(firstDataCol + 1).fill('');
+    // Insert into underlying data
     this.data.splice(insertionIndex, 0, newRow);
-    this.reinitializePreserveFolds({ insertedAt: insertionIndex });
+
+    // Create and insert corresponding RowData so we keep metadata in sync
+    const indentLevel = this.calculateIndentLevel(insertionIndex);
+
+    // Determine visibility: if any ancestor is folded, this new row should be hidden
+    let visible = true;
+    for (let i = insertionIndex - 1; i >= 0; i--) {
+      if (this.rows[i].indentLevel < indentLevel) {
+        if (this.rows[i].isFolded) {
+          visible = false;
+        }
+        break;
+      }
+    }
+
+    const rowData: RowData = {
+      originalRowIndex: insertionIndex,
+      indentLevel,
+      isFolded: false,
+      isVisible: visible,
+      cells: this.data[insertionIndex]
+    };
+
+    // Ensure rows array exists and insert metadata at same index
+    if (!this.rows) this.rows = [];
+    this.rows.splice(insertionIndex, 0, rowData);
+
+    // Update originalRowIndex for subsequent rows to reflect new ordering
+    for (let i = insertionIndex + 1; i < this.rows.length; i++) {
+      this.rows[i].originalRowIndex = i;
+    }
+
+    // Also update the previous row's hasChildren/isFoldable because insertion may have created
+    // or removed a child relationship for the predecessor.
+    const prev = insertionIndex - 1;
+    if (prev >= 0 && prev < this.rows.length) {
+      // nothing to store; callers compute hasChildren via checkHasChildren()
+    }
+
     return { newRowIndex: insertionIndex, focusCol: firstDataCol };
   }
 
@@ -275,11 +257,30 @@ export class TSVDataModel {
   deleteRow(rowIndex: number): void {
     if (this.data.length > 1 && rowIndex >= 0 && rowIndex < this.data.length) {
       this.data.splice(rowIndex, 1);
-  this.reinitializePreserveFolds({ deletedAt: rowIndex });
+      // Keep metadata in sync if present
+      if (this.rows && rowIndex >= 0 && rowIndex < this.rows.length) {
+        this.rows.splice(rowIndex, 1);
+        // Update originalRowIndex for subsequent rows
+        for (let i = rowIndex; i < this.rows.length; i++) {
+          this.rows[i].originalRowIndex = i;
+        }
+      }
     }
   }
 
   // Folding Operations
+
+  
+  // Check if a row has children (next row has higher indent level)
+  private checkHasChildren(rowIndex: number): boolean {
+    if (rowIndex >= this.data.length - 1) return false;
+    
+    const currentLevel = this.calculateIndentLevel(rowIndex);
+    const nextLevel = this.calculateIndentLevel(rowIndex + 1);
+    
+    return nextLevel > currentLevel;
+  }
+
 
   // Helper: Get all children of a node
   private getChildren(rowIndex: number): number[] {
@@ -326,70 +327,59 @@ export class TSVDataModel {
 
   // FoldSelf(node): node.folded = true; for all children: Hide();
   private foldSelf(rowIndex: number): void {
-  if (rowIndex < 0 || rowIndex >= this.rows.length) return;
-  this.rows[rowIndex].isFolded = true;
-    
-    const children = this.getChildren(rowIndex);
-    for (const childIndex of children) {
-      this.hide(childIndex);
-    }
+    this.recursiveFold(rowIndex, false);
   }
 
   // UnfoldSelf: node.folded = false; if (node.visible) for all children: Show(child)
   private unfoldSelf(rowIndex: number): void {
-  if (rowIndex < 0 || rowIndex >= this.rows.length) return;
-  this.rows[rowIndex].isFolded = false;
-  if (this.rows[rowIndex].isVisible) {
-      const children = this.getChildren(rowIndex);
-      for (const childIndex of children) {
-        this.show(childIndex);
-      }
-    }
+    this.recursiveUnfold(rowIndex, false);
   }
 
   // Public interface methods
 
   // Toggle fold state of a specific row
-  toggleFold(rowIndex: number): void {
+  toggleFold(rowIndex: number, recurse: boolean =false): void {
     if (rowIndex >= 0 && rowIndex < this.rows.length) {
       const metadata = this.rows[rowIndex];
-      if (metadata.hasChildren) {
+  if (this.checkHasChildren(rowIndex)) {
         if (metadata.isFolded) {
-          this.unfoldSelf(rowIndex);
+          this.recursiveFold(rowIndex, recurse);
         } else {
-          this.foldSelf(rowIndex);
+          this.recursiveFold(rowIndex, recurse);
         }
       }
     }
   }
 
   // Public folding operations  
-  recursiveFold(rowIndex: number): void {
+  recursiveFold(rowIndex: number, recurse: boolean=true): void {
     if (rowIndex >= 0 && rowIndex < this.rows.length) {
       const metadata = this.rows[rowIndex];
-      if (metadata.hasChildren) {
+  if (this.checkHasChildren(rowIndex)) {
         // RecursiveFold(node): node.folded = true; for all children: { RecursiveFold(); Hide(); }
         metadata.isFolded = true;
         const children = this.getChildren(rowIndex);
         for (const childIndex of children) {
-          this.recursiveFold(childIndex);
+          if (recurse)
+            this.recursiveFold(childIndex, recurse);
           this.hide(childIndex);
         }
       }
     }
   }
 
-  recursiveUnfold(rowIndex: number): void {
+  recursiveUnfold(rowIndex: number, recurse:boolean=true): void {
     if (rowIndex >= 0 && rowIndex < this.rows.length) {
       const metadata = this.rows[rowIndex];
-      if (metadata.hasChildren) {
+  if (this.checkHasChildren(rowIndex)) {
         // RecursiveUnfold(node): node.folded = false; if (visible) for all children: { Show(); RecursiveUnfold(); }
         metadata.isFolded = false;
         if (metadata.isVisible) {
           const children = this.getChildren(rowIndex);
           for (const childIndex of children) {
             this.show(childIndex);
-            this.recursiveUnfold(childIndex);
+            if (recurse)
+              this.recursiveUnfold(childIndex, recurse);
           }
         }
       }
@@ -403,15 +393,7 @@ export class TSVDataModel {
       const r = this.rows[i];
       if (r.isVisible) {
         // Return shallow copy to avoid accidental external mutation
-        out.push({
-          originalRowIndex: i,
-          indentLevel: r.indentLevel,
-            isFolded: r.isFolded,
-            isVisible: r.isVisible,
-            hasChildren: r.hasChildren,
-            isFoldable: r.hasChildren,
-            cells: [...r.cells]
-        });
+        out.push(r);
       }
     }
     return out;
@@ -420,9 +402,8 @@ export class TSVDataModel {
   // Get metadata for a specific row
   getRowMetadata(rowIndex: number): RowData | null {
     if (rowIndex >= 0 && rowIndex < this.rows.length) {
-      const r = this.rows[rowIndex];
-      return { ...r, cells: [...r.cells], originalRowIndex: rowIndex };
-    }
+      return this.rows[rowIndex];
+   }
     return null;
   }
 

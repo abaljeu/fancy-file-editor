@@ -26,12 +26,12 @@ describe('TSVDataModel - Folding Features', () => {
       const visibleRows = model.getVisibleRows();
       
       // Check foldable status
-      assert.strictEqual(visibleRows[0].isFoldable, true);  // Name has children
-      assert.strictEqual(visibleRows[1].isFoldable, true);  // John has children
-      assert.strictEqual(visibleRows[2].isFoldable, false); // Good has no children
-      assert.strictEqual(visibleRows[3].isFoldable, false); // excellent has no children
-      assert.strictEqual(visibleRows[4].isFoldable, false); // Jane has no children
-      assert.strictEqual(visibleRows[5].isFoldable, false); // Section has no children
+      assert.strictEqual(model.checkHasChildren(0), true);  // Name has children
+      assert.strictEqual(model.checkHasChildren(1), true);  // John has children
+      assert.strictEqual(model.checkHasChildren(2), false); // Good has no children
+      assert.strictEqual(model.checkHasChildren(3), false); // excellent has no children
+      assert.strictEqual(model.checkHasChildren(4), false); // Jane has no children
+      assert.strictEqual(model.checkHasChildren(5), false); // Section has no children
     });
   });
 
@@ -102,9 +102,9 @@ describe('TSVDataModel - Folding Features', () => {
       
       // Check that all descendants are unfolded
       assert.strictEqual(visibleRows[0].isFolded, false); // Parent
-      assert.strictEqual(visibleRows[1].isFoldable, true); // Child1 is foldable
+      assert.strictEqual(model.checkHasChildren(1), true); // Child1 is foldable
       assert.strictEqual(visibleRows[1].isFolded, false); // Child1 is unfolded
-      assert.strictEqual(visibleRows[4].isFoldable, true); // Child2 is foldable  
+      assert.strictEqual(model.checkHasChildren(4), true); // Child2 is foldable  
       assert.strictEqual(visibleRows[4].isFolded, false); // Child2 is unfolded
     });
   });
@@ -250,7 +250,7 @@ describe('TSVDataModel - Folding Features', () => {
       
       let visibleRows = model.getVisibleRows();
       assert.strictEqual(visibleRows.length, 1);
-      assert.strictEqual(visibleRows[0].isFoldable, false);
+      assert.strictEqual(model.checkHasChildren(0), false);
     });
   });
 });
