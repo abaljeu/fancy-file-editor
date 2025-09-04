@@ -183,7 +183,7 @@ function renderTable(visibleRows) {
       foldTd.appendChild(foldIndicator);
     }
     tr.appendChild(foldTd);
-    rowData.cells.forEach((cellValue, colIndex) => {
+  rowData.cells.forEach((cellValue, colIndex) => {
       const td = document.createElement('td');
       const input = document.createElement('input');
       input.type = 'text';
@@ -191,7 +191,6 @@ function renderTable(visibleRows) {
       input.value = cellValue || '';
       input.dataset.row = rowData.originalRowIndex;
       input.dataset.col = colIndex;
-      if (colIndex === 0) { input.style.paddingLeft = (rowData.indentLevel * 20) + 'px'; }
       input.addEventListener('input', handleCellEdit);
       input.addEventListener('keydown', (event) => handleKeyDown(event, rowData.originalRowIndex, colIndex));
       td.appendChild(input);

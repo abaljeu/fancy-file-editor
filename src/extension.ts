@@ -46,22 +46,21 @@ class MyTextEditorProvider implements vscode.CustomTextEditorProvider {
         edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), newTsvText);
         vscode.workspace.applyEdit(edit);
       } else if (e.type === 'insertRow') {
-        // Handle row insertion with Excel-like indentation
+        // Handle row insertion; 'after' respects folding subtree
         const { rowIndex, position } = e.data; // position: 'before' or 'after'
         let newRowIndex: number;
         let focusCol: number;
-        
+
         if (position === 'after') {
-          const result = model.insertRowWithIndent(rowIndex);
-          newRowIndex = result.newRowIndex;
-          focusCol = result.focusCol;
+          const result = model.insertRowAfterVisible(rowIndex);
+            newRowIndex = result.newRowIndex;
+            focusCol = result.focusCol;
         } else {
           model.insertRowBefore(rowIndex);
           newRowIndex = rowIndex;
-          focusCol = 0; // For "before" insertion, start at beginning
+          focusCol = 0;
         }
-        
-        // Update document and refresh webview with focus on new row
+
         this.updateDocumentAndRefresh(document, webviewPanel, model, { row: newRowIndex, col: focusCol });
       } else if (e.type === 'deleteRow') {
         // Handle row deletion

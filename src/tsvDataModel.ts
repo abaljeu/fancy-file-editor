@@ -75,6 +75,52 @@ export class TSVDataModel {
     }
   }
 
+  /**
+   * Rebuild rowMetadata while preserving existing fold states.
+   * Adjust indices for insertion/deletion and reapply folds so descendants
+   * remain hidden. New rows start unfolded & visible.
+   */
+  private reinitializePreserveFolds(change?: { insertedAt?: number; deletedAt?: number }): void {
+    // Capture indices of folded rows prior to mutation
+    const foldedSet: number[] = [];
+    for (let i = 0; i < this.rowMetadata.length; i++) {
+      if (this.rowMetadata[i].isFolded) foldedSet.push(i);
+    }
+
+    // Perform full metadata rebuild (resets visibility & hasChildren flags)
+    this.initializeFoldingMetadata();
+
+    // Adjust indices relative to structural change
+    if (change?.insertedAt !== undefined) {
+      for (let i = 0; i < foldedSet.length; i++) {
+        if (foldedSet[i] >= change.insertedAt) foldedSet[i] += 1;
+      }
+    }
+    if (change?.deletedAt !== undefined) {
+      for (let i = 0; i < foldedSet.length; i++) {
+        if (foldedSet[i] > change.deletedAt) foldedSet[i] -= 1;
+        else if (foldedSet[i] === change.deletedAt) {
+          // Deleted the folded row itself; remove from list
+          foldedSet.splice(i, 1); i--; 
+        }
+      }
+    }
+
+    // Reapply fold state, ensuring descendants are hidden again
+    for (const idx of foldedSet) {
+      if (idx >= 0 && idx < this.rowMetadata.length) {
+        // Reapply fold flag; if it no longer has children this is a no-op for visibility
+        this.rowMetadata[idx].isFolded = true;
+        if (this.rowMetadata[idx].hasChildren) {
+          const children = this.getChildren(idx);
+          for (const child of children) {
+            this.hide(child);
+          }
+        }
+      }
+    }
+  }
+
   // Calculate indent level based on leading empty cells
   private calculateIndentLevel(rowIndex: number): number {
     if (rowIndex >= this.data.length) return 0;
@@ -82,9 +128,17 @@ export class TSVDataModel {
     const row = this.data[rowIndex];
     let indentLevel = 0;
     
-    // Count leading empty cells as indentation
+    // Count leading empty cells as indentation, but reserve the last cell
+    // as a potential data cell placeholder (so an all-empty newly inserted
+    // row with N cells is treated as indent N-1, not N). This keeps a newly
+    // inserted blank row after a folded parent at the parent's indent level
+    // instead of being classified as a hidden child.
     for (let i = 0; i < row.length; i++) {
       if (row[i] === '') {
+        // If we're at the last cell, treat it as the data cell placeholder
+        if (i === row.length - 1) {
+          break;
+        }
         indentLevel++;
       } else {
         break;
@@ -141,6 +195,7 @@ export class TSVDataModel {
     // Just insert a single empty cell (no tabs initially)
     const newRow = [''];
     this.data.splice(rowIndex, 0, newRow);
+  this.reinitializePreserveFolds({ insertedAt: rowIndex });
   }
 
   // Insert a new row with leading tabs to match the first data column of the row above
@@ -164,14 +219,51 @@ export class TSVDataModel {
     // Create new row with empty cells up to the first data column
     const newRow = new Array(firstDataCol + 1).fill('');
     this.data.splice(newRowIndex, 0, newRow);
+  this.reinitializePreserveFolds({ insertedAt: newRowIndex });
     
     return { newRowIndex, focusCol: firstDataCol };
+  }
+
+  /**
+   * Insert a new sibling row logically "after" the current visible row.
+   * If the current row is folded, the new row is placed after its entire hidden subtree.
+   * Returns the inserted row index and the column to focus.
+   */
+  insertRowAfterVisible(rowIndex: number): { newRowIndex: number; focusCol: number } {
+    // Defensive clamp
+    if (rowIndex < 0) { rowIndex = 0; }
+    if (rowIndex >= this.data.length) { rowIndex = this.data.length - 1; }
+
+    // If row is not folded we can reuse existing logic which inserts immediately after
+    if (!this.rowMetadata[rowIndex] || !this.rowMetadata[rowIndex].isFolded) {
+      return this.insertRowWithIndent(rowIndex); // already returns new row index (rowIndex+1)
+    }
+
+    // Row is folded: we must insert after its entire subtree but keep indentation of the folded row
+    const baseIndent = this.rowMetadata[rowIndex].indentLevel;
+    let insertionIndex = rowIndex + 1;
+    while (insertionIndex < this.rowMetadata.length && this.rowMetadata[insertionIndex].indentLevel > baseIndent) {
+      insertionIndex++;
+    }
+
+    // Compute first data column from the folded (reference) row
+    const referenceRow = this.data[rowIndex] || [''];
+    let firstDataCol = 0;
+    for (let i = 0; i < referenceRow.length; i++) {
+      if (referenceRow[i].trim() !== '') { firstDataCol = i; break; }
+    }
+
+    const newRow = new Array(firstDataCol + 1).fill('');
+    this.data.splice(insertionIndex, 0, newRow);
+  this.reinitializePreserveFolds({ insertedAt: insertionIndex });
+    return { newRowIndex: insertionIndex, focusCol: firstDataCol };
   }
 
   // Delete row at the specified index
   deleteRow(rowIndex: number): void {
     if (this.data.length > 1 && rowIndex >= 0 && rowIndex < this.data.length) {
       this.data.splice(rowIndex, 1);
+  this.reinitializePreserveFolds({ deletedAt: rowIndex });
     }
   }
 

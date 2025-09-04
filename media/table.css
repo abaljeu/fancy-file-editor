@@ -1,4 +1,7 @@
 /* TSV Table Styling */
+/* NOTE: Indentation visualization: we rely solely on leading empty cells now.
+  Padding-left previously applied to first data cell was removed to avoid
+  duplicating tab semantics inside cell content. */
 body {
   margin: 0;
   padding: 8px;

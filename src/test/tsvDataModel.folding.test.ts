@@ -149,6 +149,74 @@ describe('TSVDataModel - Folding Features', () => {
       // This is acceptable behavior as the row insertion changes the structure
       assert.strictEqual(child1Row !== undefined, true, 'Child1 should still exist after row insertion');
     });
+
+    it('should preserve fold state after inserting inside or after folded subtree', () => {
+      const testData = 'Parent\n\tChild1\n\t\tGrandchild1\n\tChild2\n\t\tGrandchild2';
+      const model = new TSVDataModel(testData);
+
+      // Fold Child1 (row index 1)
+      model.toggleFold(1);
+      let visible = model.getVisibleRows();
+      assert.strictEqual(visible.length, 4, 'Grandchild1 should be hidden');
+      const child1Visible = visible.find(r => (r.cells[r.cells.length - 1] || '').trim() === 'Child1');
+      assert.ok(child1Visible && child1Visible.isFolded, 'Child1 should be folded');
+
+      // Insert a new row AFTER the folded subtree using insertRowAfterVisible
+      const { newRowIndex } = model.insertRowAfterVisible(1);
+      // The new row should appear between Child1 and Child2 in visible rows
+      visible = model.getVisibleRows();
+      const child1Idx = visible.findIndex(r => (r.cells[r.cells.length - 1] || '').trim() === 'Child1');
+      const child2Idx = visible.findIndex(r => (r.cells[r.cells.length - 1] || '').trim() === 'Child2');
+      assert.ok(child1Idx !== -1 && child2Idx !== -1, 'Child1 and Child2 must be visible');
+      assert.strictEqual(child2Idx, child1Idx + 2, 'There should be exactly one new visible row between Child1 and Child2');
+      const betweenRow = visible[child1Idx + 1];
+      assert.strictEqual(betweenRow.originalRowIndex, newRowIndex, 'Inserted row should map to the expected original index');
+      // Fold state should persist
+      const child1RowMeta = model.getRowMetadata(1);
+      assert.ok(child1RowMeta && child1RowMeta.isFolded, 'Child1 should remain folded after insertion');
+
+      // Ensure Grandchild1 still hidden
+      const stillHidden = !visible.some(r => (r.cells[r.cells.length - 1] || '').trim() === 'Grandchild1');
+      assert.ok(stillHidden, 'Grandchild1 should remain hidden while Child1 is folded');
+    });
+
+    it('should preserve fold state after deleting a row inside a folded subtree', () => {
+      const testData = 'Parent\n\tChild1\n\t\tGrandchild1\n\tChild2';
+      const model = new TSVDataModel(testData);
+      // Fold Child1 (row 1)
+      model.toggleFold(1);
+      let visible = model.getVisibleRows();
+      assert.strictEqual(visible.length, 3, 'Grandchild1 should be hidden');
+      // Delete hidden Grandchild1 (original index 2)
+      model.deleteRow(2);
+      // Fold should persist
+      visible = model.getVisibleRows();
+      const child1 = visible.find(r => (r.cells[r.cells.length - 1] || '').trim() === 'Child1');
+      assert.ok(child1 && child1.isFolded, 'Child1 should remain folded after deletion within subtree');
+      // Ensure Parent and Child2 still present
+      assert.ok(visible.find(r => (r.cells[r.cells.length - 1] || '').trim() === 'Parent'));
+      assert.ok(visible.find(r => (r.cells[r.cells.length - 1] || '').trim() === 'Child2'));
+    });
+
+    it('should preserve fold state after deleting a row above the folded row (index shift)', () => {
+      const testData = 'Intro\nParent\n\tChild1\n\t\tGrandchild1';
+      const model = new TSVDataModel(testData);
+      // Fold Parent (currently index 1)
+      model.toggleFold(1);
+      let visible = model.getVisibleRows();
+  // Folding Parent should hide Child1 and its descendants, leaving Intro + Parent
+  assert.strictEqual(visible.length, 2, 'Only Intro and Parent should be visible when Parent is folded');
+      // Delete Intro (row 0) causing indices to shift
+      model.deleteRow(0);
+      // Parent now at index 0; fold should remain
+      visible = model.getVisibleRows();
+      const parent = visible.find(r => (r.cells[r.cells.length - 1] || '').trim() === 'Parent');
+      assert.ok(parent && parent.isFolded, 'Parent should remain folded after upward index shift');
+  // After deleting Intro we expect only Parent visible (its children still hidden)
+  assert.strictEqual(visible.length, 1, 'Only Parent should remain visible after Intro deletion');
+  const hidden = !visible.some(r => (r.cells[r.cells.length - 1] || '').trim() === 'Child1' || (r.cells[r.cells.length - 1] || '').trim() === 'Grandchild1');
+  assert.ok(hidden, 'Child1 and Grandchild1 should remain hidden after deletion');
+    });
   });
 
   describe('Edge Cases', () => {
