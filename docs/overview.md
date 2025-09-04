@@ -4,3 +4,6 @@ The Fancy File Editor project is a prototype Visual Studio Code extension that p
 
 The content will be custom rendering, not the standard monospace editor.
 The format it handles will be .tsb extension, which is Tab Separated Values, but there are extra features to the interpretation of a value. It also will be geared to handle other filetypes by the renderer converting internally to a representation of tsb.
+
+The structure of this project shall be in [[architecture.md]] which is to be updated whenever it varies from the actual code.
+Testing is described in [[test-organization.md]] and [[testing.md]], but this should be consolidated into one shorter document.

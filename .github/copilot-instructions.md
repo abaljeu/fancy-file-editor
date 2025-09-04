@@ -1,3 +1,5 @@
-For all-purpose instruction, copilot must read ./global-instructions.md.
+Copilot: read [[./global-instructions.md]] immediately.  Copilot shall consider that file's instructions before taking any action.
 
-Our plans are at docs/plan.md.
+The project description, in various aspects, is located at [[docs/overview.md]].
+Work tasks generally are listed in [[docs/plan.md]].
+

@@ -160,15 +160,18 @@ class MyTextEditorProvider implements vscode.CustomTextEditorProvider {
   private getHtml(webview: vscode.Webview) {
     const htmlPath = path.join(this.context.extensionPath, 'media', 'webview.html');
     const cssPath = path.join(this.context.extensionPath, 'media', 'table.css');
+  const scriptPath = path.join(this.context.extensionPath, 'media', 'webview.js');
     
     // Read HTML file
     let html = fs.readFileSync(htmlPath, 'utf8');
     
-    // Create webview URI for CSS file
+  // Create webview URIs for static assets
     const cssUri = webview.asWebviewUri(vscode.Uri.file(cssPath));
+  const scriptUri = webview.asWebviewUri(vscode.Uri.file(scriptPath));
     
-    // Replace CSS link with proper webview URI
-    html = html.replace('href="table.css"', `href="${cssUri}"`);
+  // Replace asset references with proper webview URIs
+  html = html.replace('href="table.css"', `href="${cssUri}"`)
+         .replace('src="webview.js"', `src="${scriptUri}"`);
     
     return html;
   }

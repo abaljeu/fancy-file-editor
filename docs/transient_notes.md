@@ -1,95 +1,185 @@
-# Session Notes for Future Context
+# Transient Architecture & Refactor Notes
 
-[[plans.md]] is where we're working.
+Date: 2025-09-04
 
+Purpose: Working scratchpad consolidating current understanding of the Fancy File Editor architecture, known mismatches/bugs, and proposed remediation steps before restructuring. This mirrors the recent assistant explanation so we can iterate directly in-repo.
 
-## Current State (September 3, 2025)
-Working on implementing folding functionality for the TSV editor extension.
+---
+## 1. Key Components (Current)
 
-## Folding Feature Implementation Status
+| Area | File | Role |
+|------|------|------|
+| Data Model | `src/tsvDataModel.ts` | Parses `.tsb` (tab-separated with custom semantics), holds rows + folding metadata, exposes operations (parse, serialize, fold/unfold, visibility projection) |
+| Extension Activation & Provider | `src/extension.ts` | Registers custom editor provider; mediates between VS Code `TextDocument`, the model instance, and the webview; handles message dispatch; rewrites document text on edits |
+| Webview UI | `media/webview.html`, `media/table.css` | Renders visible rows as an HTML table with custom cell inputs, sends edit & folding messages back to extension |
+| Tests (logic + folding) | `src/test/*.test.ts` | Exercise parsing, workflows, folding visibility rules; do not cover full provider/webview integration |
+| Docs (intent) | `docs/overview.md`, `docs/plans.md` | High-level intent; architecture drift vs actual code not always reconciled |
 
-### ✅ Completed:
-1. **Data Model Infrastructure**: Extended `TSVDataModel` with folding metadata
-   - Added `RowMetadata` interface with `indentLevel`, `isFolded`, `hasChildren`
-   - Implemented hierarchy detection based on leading empty cells (not whitespace in cell content)
-   - Added `getVisibleRows()` method that returns filtered data for webview
-   - Added basic folding operations: `toggleFold()`, `foldAllDescendants()`
+Notes:
+* Rendering is NOT the standard VS Code text editor; it's a custom table-like interface.
+* Folding implemented logically (hide descendant rows) rather than leveraging VS Code's native folding ranges.
+* Editing strategy = full document replacement each mutation (simplifies sync; not efficient long-term).
 
-2. **Extension Provider Updates**: Modified `MyTextEditorProvider` 
-   - Added message handlers for `toggleFold` and `foldAllDescendants`
-   - Updated webview communication to send `visibleRows` instead of full table data
-   - Added `refreshWebviewWithFolding()` method for fold-only updates (no document save)
+---
+## 2. Model Responsibilities (Observed)
 
-3. **Webview Presenter**: Updated HTML/CSS/JS
-   - Added fold indicator margin column with VS Code-style triangles (⏵ folded, ⏷ unfolded)
-   - Added hover effects showing ⌄ for foldable rows
-   - Added Ctrl+. keyboard shortcut for toggling fold
-   - Extended context menu with fold operations
-   - Updated table rendering to handle `visibleRows` data structure with indentation
+1. Parse raw text -> internal row array (each row = cells[], indentation, possibly inferred hierarchy)
+2. Maintain `rowMetadata[]` with:
+	 * `indentLevel`
+	 * `hasChildren`
+	 * `isFolded`
+	 * `isVisible` (derived)
+3. Folding operations:
+	 * `foldSelf(rowIndex)` / `unfoldSelf` (affects direct descendants' visibility)
+	 * `recursiveFold(rowIndex)` / `recursiveUnfold` (deep)
+	 * `toggleFold(rowIndex)` (non-recursive?)
+4. Projection: `getVisibleRows()` returns rows for UI consumption (with original indices, etc.)
+5. Serialization back to text when persisting to VS Code document.
 
-### 🔄 Current Issue - Test Failures:
-**Problem**: 3 failing tests in `tsvDataModel.folding.test.ts` due to `foldAllDescendants` behavior mismatch
+Pain Points:
+* Fold state restoration after metadata recalculation is index-based and incomplete (descendants reappear; identity can shift).
+* Partial semantic mismatch between recursive vs non-recursive fold operations and UI naming.
 
-**Root Cause**: Conflicting understanding of `foldAllDescendants` expected behavior:
-- **Current Implementation**: Folds parent AND descendants → only parent visible when parent folded
-- **Test Expectation**: Sets fold state on parent + descendants but keeps immediate children visible
+---
+## 3. Provider (Message Bridge) Gaps
 
-**Specific Test Failure**: 
+Current message types handled exclude some actually emitted by the webview. Specifically:
+* Webview uses `foldAllDescendants` (context menu) → Provider does NOT handle it (expects `recursiveFold`). No-op bug.
+* `unfold` action in context menu reuses `toggleFold`, which may re-fold depending on existing state (not idempotent).
+
+Full-document replace logic uses a large `Range(0,0,lineCount,0)`. Works but less explicit than using document end position by offset.
+
+---
+## 4. Webview UI Issues
+
+1. Navigation bug: Tab key selection uses `tr:nth-child(${rowIndex+1})`. With folding, DOM order ≠ original row index. Should query by attribute `tr[data-original-row="..."]` (already used elsewhere).
+2. Inconsistent naming: UI uses `foldAllDescendants`; provider & model refer to `recursiveFold`.
+3. Context menu 'Unfold' isn't guaranteed to unfold (delegates to toggle).
+
+---
+## 5. Folding Logic Problems (Detail)
+
+| Problem | Effect |
+|---------|--------|
+| Missing handler `foldAllDescendants` | Feature silently fails |
+| `updateFoldingMetadata()` re-applies `isFolded` flags but doesn't re-hide descendants | Collapsed nodes visually expand after structural changes |
+| Index-based fold restoration | Wrong rows can be marked folded after insert/delete |
+| Mixed semantics (toggle vs recursive) | User confusion / inconsistent test expectations |
+
+Example failure mode: After editing rows that shift indices, a previously folded row might stay folded but hide the wrong set of descendants or none at all.
+
+---
+## 6. Minimal Remediation Plan (Phase 1)
+
+Goal: Make existing features consistent & predictable without large refactors.
+
+1. Add provider handlers for `foldAllDescendants` / `unfoldAllDescendants` (map to recursive). (Implemented as alias to `recursiveFold` / `recursiveUnfold`.)
+2. In `updateFoldingMetadata()`, when restoring a previously folded row, call `foldSelf(rowIndex)` (or recursive variant) so visibility recomputed correctly.
+3. Fix Tab navigation DOM selection to use `data-original-row`.
+4. Make context menu 'Unfold' send an explicit unfold (not toggle) → propose using message `{ type: 'recursiveFold', data: { folded: false } }` (naming odd but preserves code paths; could rename later).
+5. (Optional) Introduce stable row identity (hash of trimmed cells + indent) for future fold-state persistence; defer to Phase 2.
+
+---
+## 7. Proposed Code Changes (Draft – Not Applied Yet)
+
+Extension provider snippet (add back-compat handler):
+```ts
+} else if (e.type === 'foldAllDescendants') {
+	const { rowIndex, folded } = e.data;
+	if (folded) {
+		model.recursiveFold(rowIndex);
+	} else {
+		model.recursiveUnfold(rowIndex);
+	}
+	this.refreshWebviewWithFolding(webviewPanel, model, e.data.focusCell);
+}
 ```
-Test expects: foldAllDescendants(0, true) → 3 visible (Parent, Child1, Child2)
-Actual result: foldAllDescendants(0, true) → 1 visible (Parent only)
+
+Model `updateFoldingMetadata()` adjustment:
+```ts
+oldFoldStates.forEach((isFolded, rowIndex) => {
+	if (rowIndex < this.rowMetadata.length && this.rowMetadata[rowIndex].hasChildren) {
+		if (isFolded) {
+			this.foldSelf(rowIndex); // ensures descendants hidden
+		}
+	}
+});
 ```
 
-### 🎯 Next Steps:
-1. **Clarify Requirements**: Determine correct `foldAllDescendants` behavior:
-   - Option A: Current impl - fold parent hides all descendants immediately
-   - Option B: Test expectation - mark all as folded but show structure until parent manually folded
-
-2. **Fix Implementation**: Once behavior clarified, update either:
-   - `foldAllDescendants()` method logic, OR 
-   - Test expectations in `tsvDataModel.folding.test.ts`
-
-3. **Complete Integration**: After tests pass, test full UI integration in VS Code
-
-## Technical Architecture Notes
-
-### Data Flow:
-```
-TSVDataModel (folding logic) → Extension Provider (message handling) → Webview (UI rendering)
+Webview Tab navigation fix:
+```js
+const currentRow = document.querySelector(`tr[data-original-row="${rowIndex}"]`);
 ```
 
-### Key Files:
-- `src/tsvDataModel.ts` - Core folding logic and data model
-- `src/extension.ts` - VS Code extension provider with message handling  
-- `media/webview.html` - Webview UI with fold indicators and keyboard shortcuts
-- `media/table.css` - Styling for fold margin and indicators
-- `src/test/tsvDataModel.folding.test.ts` - Comprehensive folding tests (3 failing)
-
-### Folding UI Specification:
-- **Margin Indicators**: 20px left column with fold triangles
-- **Keyboard**: Ctrl+. to toggle fold current row/parent
-- **Context Menu**: Fold, Unfold, Fold All Descendants, Unfold All Descendants
-- **Visual**: VS Code-style indicators (⏵ folded, ⏷ unfolded, ⌄ hover for foldable)
-
-### TSV Hierarchy Detection:
-- **Method**: Count leading empty cells as indentation level (NOT whitespace in cell content)
-- **Example**: `['', '', 'Good']` = indent level 2
-- **Parent-Child**: Row with higher indent level than previous = child relationship
-
-## Debug Commands Used:
-```bash
-# Test specific folding functionality
-npx mocha out/test/folding.debug.test.js
-
-# Run all folding tests  
-npx mocha out/test/tsvDataModel.folding.test.js
-
-# Debug data parsing
-node -e "const {TSVDataModel} = require('./out/tsvDataModel.js'); /* test code */"
+Context menu explicit unfold:
+```js
+vscode.postMessage({
+	type: 'recursiveFold',
+	data: { rowIndex: contextMenuRow, folded: false }
+});
 ```
 
-## Overall Project Context:
-- **Goal**: VS Code custom editor for TSV files with Excel-like editing
-- **Phase**: Working on Phase 6 - Folding/Outline functionality  
-- **Previous Phases**: Basic editing, keyboard navigation, table management, comprehensive testing (64 tests) all completed
-- **Test Coverage**: 64 passing tests + 3 failing folding tests = 67 total tests
+---
+## 8. Open Design Decisions (Need Agreement)
+
+1. Fold-All Semantics: Should "Fold All Descendants" collapse the entire subtree (hide every deeper node) or only deeper grandchildren (leaving direct children visible)? Current proposal = collapse all.
+2. Identity for Fold Persistence: Accept index-based interim solution, or implement stable hash (e.g., `indent + firstCell + childCount`) now?
+3. Message Vocabulary: Standardize on verbs (e.g., `foldNode`, `unfoldNode`, `foldSubtree`, `unfoldSubtree`) vs overloading `recursiveFold` with a boolean.
+4. Non-Recursive Toggle: Keep both granular (`foldSelf`) and recursive operations, or simplify to recursive only in UI layer?
+5. Performance Strategy: Stay with whole-document rewrite until diffing becomes a bottleneck, or prototype incremental sync early?
+
+---
+## 9. Suggested Phase Sequencing
+
+Phase 1 (Stabilize): Implement minimal remediation plan (items 1–4 above) + tests for: (a) fold restoration after edit; (b) context menu operations; (c) tab navigation with folded rows.
+
+Phase 2 (Identity & API Cleanup): Introduce stable row IDs, refactor message names, unify recursive vs non-recursive semantics, adjust tests.
+
+Phase 3 (Performance & UX): Incremental document updates, selection persistence across rerenders, keyboard shortcuts for folding.
+
+Phase 4 (Extensibility): Plug-in style render adapters for other file types (convert to internal TSV-like model), richer cell editing widgets.
+
+---
+## 10. Test Gaps to Add
+
+| Scenario | New Test Idea |
+|----------|---------------|
+| Fold state survives insertion above folded block | Create model, fold a row, insert new row before it, re-run metadata update, assert visibility |
+| Webview navigation with folded rows | Simulated projection: ensure next-cell selection uses attribute-based lookup |
+| Context menu explicit unfold | Force-fold row recursively, send "unfold" message, assert all descendants visible |
+| `foldAllDescendants` alias works | Send message; ensure same outcome as `recursiveFold` |
+
+---
+## 11. Risks / Tradeoffs
+
+| Decision | Risk | Mitigation |
+|----------|------|-----------|
+| Keep index-based fold restoration temporarily | Wrong mapping after complex edits | Phase 2 identity system |
+| Add alias handlers (naming drift) | Temporary API clutter | Consolidate after tests green |
+| Recompute visibility via foldSelf calls | Slight O(n^2) worst-case on many folded nodes | Accept for current data sizes; optimize later |
+
+---
+## 12. Next Immediate Actions (Once Approved)
+
+1. Apply code patches (extension, model, webview).
+2. Add/adjust unit tests for folding restoration & message handling.
+3. Document message contract (`docs/architecture.md` update section: Messaging Protocol).
+4. Decide on semantics for "Fold All Descendants" (see Open Decision #1) – REQUIRED before finalizing tests.
+
+---
+## 13. Questions for Confirmation
+
+Please clarify:
+* Q1: Confirm "Fold All Descendants" = hide every descendant (YES/NO)?
+* Q2: Proceed with index-based restoration for Phase 1 (YES/NO)?
+* Q3: Adopt new message names now or defer to Phase 2?
+
+Add answers below, then we execute Phase 1.
+
+---
+## 14. Scratch / Notes
+
+*(Use this section for ad hoc thoughts during implementation; prune before committing a polished doc.)*
+
+---
+End of transient notes.
