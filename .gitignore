@@ -1,3 +1,13 @@
 node_modules/
 dist/
 *.vsix
+
+# TypeScript build 
+*.tsbuildinfo
+out/
+
+# VS Code workspace settings
+.vscode/
+
+# Environment variables
+.env

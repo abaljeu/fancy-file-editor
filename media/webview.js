@@ -17,6 +17,12 @@ function handleCellEdit(event) {
   });
 }
 
+// Returns ordered list of visible original row indices
+function getVisibleRowOrder() {
+  return Array.from(document.querySelectorAll('tr[data-original-row]'))
+    .map(tr => parseInt(tr.dataset.originalRow));
+}
+
 // Unified keyboard event handler for all cell interactions
 function handleKeyDown(event, rowIndex, colIndex) {
   const input = event.target;
@@ -78,7 +84,7 @@ function handleKeyDown(event, rowIndex, colIndex) {
         targetCol = colIndex - 1;
         shouldNavigate = true;
       } else {
-        const currentRow = document.querySelector(`tr:nth-child(${rowIndex + 1})`); // TODO: update to data-original-row for folding correctness
+        const currentRow = document.querySelector(`tr[data-original-row="${rowIndex}"]`);
         const cellsInRow = currentRow ? currentRow.querySelectorAll('input').length : 0;
         if (colIndex + 1 >= cellsInRow) {
           vscode.postMessage({
@@ -93,10 +99,24 @@ function handleKeyDown(event, rowIndex, colIndex) {
         }
       }
       break;
-    case 'ArrowUp':
-      targetRow = rowIndex - 1; shouldNavigate = true; break;
-    case 'ArrowDown':
-      targetRow = rowIndex + 1; shouldNavigate = true; break;
+    case 'ArrowUp': {
+      const order = getVisibleRowOrder();
+      const idx = order.indexOf(rowIndex);
+      if (idx > 0) {
+        targetRow = order[idx - 1];
+        shouldNavigate = true;
+      }
+      break;
+    }
+    case 'ArrowDown': {
+      const order = getVisibleRowOrder();
+      const idx = order.indexOf(rowIndex);
+      if (idx !== -1 && idx < order.length - 1) {
+        targetRow = order[idx + 1];
+        shouldNavigate = true;
+      }
+      break;
+    }
     case 'ArrowLeft':
       if (input.selectionStart === 0) { targetCol = colIndex - 1; shouldNavigate = true; }
       break;
@@ -107,10 +127,16 @@ function handleKeyDown(event, rowIndex, colIndex) {
 
   if (shouldNavigate) {
     event.preventDefault();
-    const targetInput = document.querySelector(`[data-row="${targetRow}"][data-col="${targetCol}"]`);
-    if (targetInput) {
-      targetInput.focus();
-      targetInput.select();
+    const targetRowEl = document.querySelector(`tr[data-original-row="${targetRow}"]`);
+    if (targetRowEl) {
+      // Clamp column if target row shorter
+      const maxCol = targetRowEl.querySelectorAll('input').length - 1;
+      const finalCol = Math.max(0, Math.min(targetCol, maxCol));
+      const targetInput = document.querySelector(`[data-row="${targetRow}"][data-col="${finalCol}"]`);
+      if (targetInput) {
+        targetInput.focus();
+        targetInput.select();
+      }
     }
   }
 }
@@ -178,8 +204,8 @@ function renderTable(visibleRows) {
 function toggleFold(rowIndex) { vscode.postMessage({ type: 'toggleFold', data: { rowIndex: rowIndex } }); }
 function foldRow() { if (contextMenuRow !== -1) { vscode.postMessage({ type: 'toggleFold', data: { rowIndex: contextMenuRow } }); } hideContextMenu(); }
 function unfoldRow() { if (contextMenuRow !== -1) { vscode.postMessage({ type: 'toggleFold', data: { rowIndex: contextMenuRow } }); } hideContextMenu(); }
-function foldAllDescendants() { if (contextMenuRow !== -1) { vscode.postMessage({ type: 'foldAllDescendants', data: { rowIndex: contextMenuRow, folded: true } }); } hideContextMenu(); }
-function unfoldAllDescendants() { if (contextMenuRow !== -1) { vscode.postMessage({ type: 'foldAllDescendants', data: { rowIndex: contextMenuRow, folded: false } }); } hideContextMenu(); }
+function recursiveFold() { if (contextMenuRow !== -1) { vscode.postMessage({ type: 'recursiveFold', data: { rowIndex: contextMenuRow, folded: true } }); } hideContextMenu(); }
+function recursiveUnfold() { if (contextMenuRow !== -1) { vscode.postMessage({ type: 'recursiveFold', data: { rowIndex: contextMenuRow, folded: false } }); } hideContextMenu(); }
 
 document.addEventListener('click', hideContextMenu);
 window.addEventListener('message', event => {

@@ -3,3 +3,4 @@ dist
 src
 .gitignore
 README.md
+out

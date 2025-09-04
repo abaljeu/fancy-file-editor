@@ -11,6 +11,10 @@ Detailed action steps belong in markdown files, and changes cited in the chat wi
 - This is Windows 10 or 11.
 - The terminal is git bash.
 
+## 1. Approach
+
+- Unless directed in a particular prompt, work in atomic pieces: a minimal change achieving a minimal goal while leaving the code and notes correct and consistent.
+
 ## 3. Conventions
 
 - No line shall exceed 100 characters, except markdown.  

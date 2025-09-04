@@ -15,8 +15,8 @@
   "main": "./out/extension.js",
   "scripts": {
     "vscode:prepublish": "npm run build",
-    "build": "tsc -p ./",
-    "watch": "tsc -w -p ./",
+  "build": "tsc -p tsconfig.json",
+  "watch": "tsc -w -p tsconfig.json",
     "pretest": "npm run build",
     "test": "npm run build && npx mocha out/test/**/*.test.js",
     "test:watch": "npm run build && npx mocha out/test/**/*.test.js --watch"

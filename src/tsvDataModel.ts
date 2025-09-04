@@ -141,7 +141,6 @@ export class TSVDataModel {
     // Just insert a single empty cell (no tabs initially)
     const newRow = [''];
     this.data.splice(rowIndex, 0, newRow);
-    this.updateFoldingMetadata();
   }
 
   // Insert a new row with leading tabs to match the first data column of the row above
@@ -173,7 +172,6 @@ export class TSVDataModel {
   deleteRow(rowIndex: number): void {
     if (this.data.length > 1 && rowIndex >= 0 && rowIndex < this.data.length) {
       this.data.splice(rowIndex, 1);
-      this.updateFoldingMetadata();
     }
   }
 
@@ -356,24 +354,4 @@ export class TSVDataModel {
     return null;
   }
 
-  // Re-calculate folding metadata (call after data changes)
-  updateFoldingMetadata(): void {
-    // Preserve existing fold states where possible
-    const oldFoldStates = new Map<number, boolean>();
-    this.rowMetadata.forEach((metadata, index) => {
-      if (metadata.isFolded) {
-        oldFoldStates.set(index, true);
-      }
-    });
-    
-    // Recalculate metadata
-    this.initializeFoldingMetadata();
-    
-    // Restore fold states where the row still exists and has children
-    oldFoldStates.forEach((isFolded, rowIndex) => {
-      if (rowIndex < this.rowMetadata.length && this.rowMetadata[rowIndex].hasChildren) {
-        this.rowMetadata[rowIndex].isFolded = isFolded;
-      }
-    });
-  }
 }

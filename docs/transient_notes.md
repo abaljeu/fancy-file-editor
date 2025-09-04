@@ -43,25 +43,23 @@ Pain Points:
 ---
 ## 3. Provider (Message Bridge) Gaps
 
-Current message types handled exclude some actually emitted by the webview. Specifically:
-* Webview uses `foldAllDescendants` (context menu) → Provider does NOT handle it (expects `recursiveFold`). No-op bug.
-* `unfold` action in context menu reuses `toggleFold`, which may re-fold depending on existing state (not idempotent).
+Current message types handled (legacy mismatch resolved):
+* `unfold` action previously reused `toggleFold`; will be updated to explicit recursive unfold (pending implementation step).
 
 Full-document replace logic uses a large `Range(0,0,lineCount,0)`. Works but less explicit than using document end position by offset.
 
 ---
 ## 4. Webview UI Issues
 
-1. Navigation bug: Tab key selection uses `tr:nth-child(${rowIndex+1})`. With folding, DOM order ≠ original row index. Should query by attribute `tr[data-original-row="..."]` (already used elsewhere).
-2. Inconsistent naming: UI uses `foldAllDescendants`; provider & model refer to `recursiveFold`.
-3. Context menu 'Unfold' isn't guaranteed to unfold (delegates to toggle).
+1. Navigation (Up/Down): arrow keys should move to the previous/next VISIBLE row (skip folded/hidden rows). Current implementation uses original row indices which may target hidden rows.
+2. Tab navigation: should use `data-original-row` (not yet updated – pending).
+3. Context menu 'Unfold': will be changed to explicit recursive unfold (not toggle).
 
 ---
 ## 5. Folding Logic Problems (Detail)
 
 | Problem | Effect |
 |---------|--------|
-| Missing handler `foldAllDescendants` | Feature silently fails |
 | `updateFoldingMetadata()` re-applies `isFolded` flags but doesn't re-hide descendants | Collapsed nodes visually expand after structural changes |
 | Index-based fold restoration | Wrong rows can be marked folded after insert/delete |
 | Mixed semantics (toggle vs recursive) | User confusion / inconsistent test expectations |
@@ -73,27 +71,16 @@ Example failure mode: After editing rows that shift indices, a previously folded
 
 Goal: Make existing features consistent & predictable without large refactors.
 
-1. Add provider handlers for `foldAllDescendants` / `unfoldAllDescendants` (map to recursive). (Implemented as alias to `recursiveFold` / `recursiveUnfold`.)
-2. In `updateFoldingMetadata()`, when restoring a previously folded row, call `foldSelf(rowIndex)` (or recursive variant) so visibility recomputed correctly.
-3. Fix Tab navigation DOM selection to use `data-original-row`.
-4. Make context menu 'Unfold' send an explicit unfold (not toggle) → propose using message `{ type: 'recursiveFold', data: { folded: false } }` (naming odd but preserves code paths; could rename later).
-5. (Optional) Introduce stable row identity (hash of trimmed cells + indent) for future fold-state persistence; defer to Phase 2.
+1. Arrow Up/Down: implement DOM-based navigation over visible `tr[data-original-row]` elements.
+2. Row insertion: change semantic to insertAfter(visibleRowIndex) (skip hidden descendants) – pending.
+3. Fix Tab navigation to use `data-original-row` (pending).
+4. Context menu 'Unfold': send explicit recursive unfold (pending).
+5. (Optional) Stable row identity for fold persistence (Phase 2).
 
 ---
 ## 7. Proposed Code Changes (Draft – Not Applied Yet)
 
-Extension provider snippet (add back-compat handler):
-```ts
-} else if (e.type === 'foldAllDescendants') {
-	const { rowIndex, folded } = e.data;
-	if (folded) {
-		model.recursiveFold(rowIndex);
-	} else {
-		model.recursiveUnfold(rowIndex);
-	}
-	this.refreshWebviewWithFolding(webviewPanel, model, e.data.focusCell);
-}
-```
+// (Removed) Back-compat handler for deprecated foldAllDescendants message.
 
 Model `updateFoldingMetadata()` adjustment:
 ```ts
@@ -122,10 +109,9 @@ vscode.postMessage({
 ---
 ## 8. Open Design Decisions (Need Agreement)
 
-1. Fold-All Semantics: Should "Fold All Descendants" collapse the entire subtree (hide every deeper node) or only deeper grandchildren (leaving direct children visible)? Current proposal = collapse all.
 2. Identity for Fold Persistence: Accept index-based interim solution, or implement stable hash (e.g., `indent + firstCell + childCount`) now?
 3. Message Vocabulary: Standardize on verbs (e.g., `foldNode`, `unfoldNode`, `foldSubtree`, `unfoldSubtree`) vs overloading `recursiveFold` with a boolean.
-4. Non-Recursive Toggle: Keep both granular (`foldSelf`) and recursive operations, or simplify to recursive only in UI layer?
+4. Keep both granular (`foldSelf`) and recursive operations.
 5. Performance Strategy: Stay with whole-document rewrite until diffing becomes a bottleneck, or prototype incremental sync early?
 
 ---
@@ -145,9 +131,10 @@ Phase 4 (Extensibility): Plug-in style render adapters for other file types (con
 | Scenario | New Test Idea |
 |----------|---------------|
 | Fold state survives insertion above folded block | Create model, fold a row, insert new row before it, re-run metadata update, assert visibility |
-| Webview navigation with folded rows | Simulated projection: ensure next-cell selection uses attribute-based lookup |
+| Webview arrow navigation with folded rows | Ensure Up/Down skip hidden rows |
+| Webview Tab navigation with folded rows | Ensure tab stays within visible row and uses data-original-row |
 | Context menu explicit unfold | Force-fold row recursively, send "unfold" message, assert all descendants visible |
-| `foldAllDescendants` alias works | Send message; ensure same outcome as `recursiveFold` |
+| (Dropped) Legacy alias test | No longer needed |
 
 ---
 ## 11. Risks / Tradeoffs
